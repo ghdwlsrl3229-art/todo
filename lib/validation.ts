@@ -11,7 +11,7 @@ export const createTodoSchema = z.object({
   title: z.string().trim().min(1, "title is required"),
   periodType: PeriodTypeEnum,
   targetDate: z.coerce.date(),
-  parentId: objectIdSchema.optional(),
+  parentId: objectIdSchema.nullable().optional(),
 });
 
 export const updateTodoSchema = z

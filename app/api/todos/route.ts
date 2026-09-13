@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
   const { title, periodType, targetDate, parentId } = parsed.data;
   const normalizedTargetDate = normalizeForPeriod(targetDate, periodType);
 
-  if (parentId !== undefined) {
+  if (parentId != null) {
     const parentExists = await prisma.todo.findUnique({ where: { id: parentId } });
     if (!parentExists) {
       return NextResponse.json({ error: "parent not found" }, { status: 400 });
@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
       targetDate: normalizedTargetDate,
       status: "TODO",
       order: (maxOrder._max.order ?? 0) + 1,
-      ...(parentId !== undefined ? { parent: { connect: { id: parentId } } } : {}),
+      ...(parentId != null ? { parent: { connect: { id: parentId } } } : {}),
     },
   });
 

@@ -104,6 +104,9 @@ export function TodoCard({ todo }: { todo: Todo }) {
               >
                 저장
               </button>
+              {updateTodo.isError && (
+                <p className="w-full text-xs text-red-600">{(updateTodo.error as Error).message}</p>
+              )}
             </div>
           ) : (
             <p

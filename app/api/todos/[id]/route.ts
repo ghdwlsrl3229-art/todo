@@ -29,10 +29,27 @@ export async function PATCH(
   const { title, periodType, targetDate, status, parentId, order } = parsed.data;
 
   if (parentId != null) {
+    if (parentId === params.id) {
+      return NextResponse.json({ error: "a todo cannot be its own parent" }, { status: 400 });
+    }
     const parentExists = await prisma.todo.findUnique({ where: { id: parentId } });
     if (!parentExists) {
       return NextResponse.json({ error: "parent not found" }, { status: 400 });
     }
+  }
+
+  // A periodType change re-scopes which parent period this todo belongs
+  // under (e.g. DAILY -> WEEKLY), so an existing link (kept or newly set in
+  // this same request) would silently point at a now-wrong-level parent
+  // and the todo would vanish from that parent's ChildrenPanel query while
+  // still counting toward it in calcYearlyProgress's basis. Require the
+  // link to be explicitly cleared first rather than doing that silently.
+  const parentIdAfterUpdate = parentId !== undefined ? parentId : existing.parentId;
+  if (periodType !== undefined && periodType !== existing.periodType && parentIdAfterUpdate != null) {
+    return NextResponse.json(
+      { error: "unlink parentId before changing periodType" },
+      { status: 400 }
+    );
   }
 
   const data: Prisma.TodoUpdateInput = {};

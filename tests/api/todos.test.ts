@@ -177,6 +177,44 @@ describe("PATCH /api/todos/:id", () => {
     );
     expect(res.status).toBe(400);
   });
+
+  it("rejects setting a todo as its own parent with 400", async () => {
+    const created = await POST(req("http://localhost/api/todos", jsonInit("POST", {
+      title: "Self link", periodType: "DAILY", targetDate: "2026-09-14",
+    })));
+    const { id } = await created.json();
+
+    const res = await PATCH(
+      req(`http://localhost/api/todos/${id}`, jsonInit("PATCH", { parentId: id })),
+      { params: { id } }
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects a periodType change on a todo that still has a parent link (400, not a silent orphan)", async () => {
+    const parentRes = await POST(req("http://localhost/api/todos", jsonInit("POST", {
+      title: "Weekly parent", periodType: "WEEKLY", targetDate: "2026-09-14",
+    })));
+    const parent = await parentRes.json();
+
+    const childRes = await POST(req("http://localhost/api/todos", jsonInit("POST", {
+      title: "Daily child", periodType: "DAILY", targetDate: "2026-09-14", parentId: parent.id,
+    })));
+    const child = await childRes.json();
+
+    const res = await PATCH(
+      req(`http://localhost/api/todos/${child.id}`, jsonInit("PATCH", { periodType: "WEEKLY" })),
+      { params: { id: child.id } }
+    );
+    expect(res.status).toBe(400);
+
+    // unlinking first, then changing periodType, is allowed
+    const okRes = await PATCH(
+      req(`http://localhost/api/todos/${child.id}`, jsonInit("PATCH", { parentId: null, periodType: "WEEKLY" })),
+      { params: { id: child.id } }
+    );
+    expect(okRes.status).toBe(200);
+  });
 });
 
 describe("DELETE /api/todos/:id", () => {

@@ -86,7 +86,7 @@
       "completionCriteriaRevision": 1,
       "architectVerified": false,
       "criterionAmendments": [],
-      "notes": "Post-architect-review fix: params.id and query parentId are now regex-validated as ObjectIds (404/400) before any db call, and reorder/[id] routes catch P2025, so a malformed id returns 404/400 instead of crashing with a 500 (previously only well-formed-but-unknown ids were tested, which could not catch this). POST/PATCH also 400 on a well-formed but nonexistent parentId. 10 new tests added; live-smoke-tested via curl."
+      "notes": "Post-architect-review fix (round 1): params.id and query parentId are now regex-validated as ObjectIds (404/400) before any db call, and reorder/[id] routes catch P2025, so a malformed id returns 404/400 instead of crashing with a 500 (previously only well-formed-but-unknown ids were tested, which could not catch this). POST/PATCH also 400 on a well-formed but nonexistent parentId. 10 new tests added; live-smoke-tested via curl. Post-review fix (round 2): createTodoSchema.parentId was .optional() without .nullable(), so CreateTodoForm's `parentId: parentId || null` payload was rejected by its own schema on every submit with no parent chosen -- meaning no todo could be created from the UI at all unless a parent was explicitly picked, and YEARLY todos (no parent picker) could never be created. Fixed to .nullable().optional(), matching updateTodoSchema; route.ts POST changed `!== undefined` to `!= null` accordingly. Live-smoke-tested both the null-parentId and YEARLY-no-parent-field cases via curl (201 both)."
     },
     {
       "id": "US-005",
@@ -186,7 +186,7 @@
           "timestamp": "2026-09-13T12:15:00.000Z"
         }
       ],
-      "notes": "Verified via automated tests / build gates. Amendment filed after architect review flagged the prd.json/code signature mismatch (previously passes:true with an empty criterionAmendments ledger, which the review correctly rejected)."
+      "notes": "Verified via automated tests / build gates. Amendment filed after architect review flagged the prd.json/code signature mismatch (previously passes:true with an empty criterionAmendments ledger, which the review correctly rejected). Round-2 review finding: the periodType-edit UI added for US-005 opened a new UI-reachable path to orphan a child (edit periodType on a parented todo without unlinking first, which would silently point parentId at a now-wrong-level parent and drop the child from its parent's ChildrenPanel/yearly-progress basis). Fixed in [id]/route.ts PATCH: changing periodType while parentId (existing or newly-set in the same request) is non-null now returns 400 instead of silently corrupting the link; also rejects a todo being set as its own parent. Both covered by new tests in tests/api/todos.test.ts."
     },
     {
       "id": "US-010",
@@ -222,7 +222,7 @@
       "completionCriteriaRevision": 1,
       "architectVerified": false,
       "criterionAmendments": [],
-      "notes": "npm run build, npx tsc --noEmit, npm run lint, and npm run test (36/36) all green as of this pass (post-architect-review fixes)."
+      "notes": "npm run build, npx tsc --noEmit, npm run lint, and npm run test (40/40) all green as of this pass (post-architect-review round 2 fixes; also fixed a test-infra gap where RTL wasn't cleaning up between tests since Vitest globals aren't enabled)."
     }
   ]
 }
