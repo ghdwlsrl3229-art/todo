@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import { useTodosQuery } from "@/hooks/useTodos";
+import { todayIsoLocal } from "@/lib/date";
 import type { PeriodType } from "@/lib/types";
 
 export function HistoryPanel() {
   const [periodType, setPeriodType] = useState<PeriodType>("WEEKLY");
-  const [date, setDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState<string>(todayIsoLocal());
 
   const { data: todos, isLoading } = useTodosQuery({
     status: "DONE",

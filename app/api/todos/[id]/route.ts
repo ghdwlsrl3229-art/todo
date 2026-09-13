@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { updateTodoSchema } from "@/lib/validation";
+import { isValidObjectId, updateTodoSchema } from "@/lib/validation";
 import { normalizeForPeriod } from "@/lib/period";
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  if (!isValidObjectId(params.id)) {
+    return NextResponse.json({ error: "not found" }, { status: 404 });
+  }
+
   const body = await request.json().catch(() => null);
   const parsed = updateTodoSchema.safeParse(body);
   if (!parsed.success) {
@@ -22,11 +26,19 @@ export async function PATCH(
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
 
-  const { title, periodType, targetDate, status, parentId } = parsed.data;
+  const { title, periodType, targetDate, status, parentId, order } = parsed.data;
+
+  if (parentId != null) {
+    const parentExists = await prisma.todo.findUnique({ where: { id: parentId } });
+    if (!parentExists) {
+      return NextResponse.json({ error: "parent not found" }, { status: 400 });
+    }
+  }
 
   const data: Prisma.TodoUpdateInput = {};
   if (title !== undefined) data.title = title;
   if (periodType !== undefined) data.periodType = periodType;
+  if (order !== undefined) data.order = order;
   if (parentId !== undefined) {
     data.parent = parentId === null ? { disconnect: true } : { connect: { id: parentId } };
   }
@@ -67,6 +79,10 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  if (!isValidObjectId(params.id)) {
+    return NextResponse.json({ error: "not found" }, { status: 404 });
+  }
+
   const existing = await prisma.todo.findUnique({ where: { id: params.id } });
   if (!existing) {
     return NextResponse.json({ error: "not found" }, { status: 404 });

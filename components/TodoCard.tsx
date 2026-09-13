@@ -13,9 +13,16 @@ const childPeriodTypeFor = (p: PeriodType): PeriodType | undefined => {
   return undefined;
 };
 
+const PERIOD_LABELS: Record<PeriodType, string> = {
+  DAILY: "일일",
+  WEEKLY: "주간",
+  YEARLY: "1년",
+};
+
 export function TodoCard({ todo }: { todo: Todo }) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(todo.title);
+  const [periodType, setPeriodType] = useState<PeriodType>(todo.periodType);
   const [showChildren, setShowChildren] = useState(false);
 
   const updateTodo = useUpdateTodo();
@@ -32,15 +39,25 @@ export function TodoCard({ todo }: { todo: Todo }) {
 
   const childPeriodType = childPeriodTypeFor(todo.periodType);
 
-  const saveTitle = () => {
+  const saveEdits = () => {
     const trimmed = title.trim();
-    if (!trimmed || trimmed === todo.title) {
+    const titleChanged = trimmed && trimmed !== todo.title;
+    const periodChanged = periodType !== todo.periodType;
+
+    if (!titleChanged && !periodChanged) {
       setTitle(todo.title);
       setEditing(false);
       return;
     }
+
     updateTodo.mutate(
-      { id: todo.id, input: { title: trimmed } },
+      {
+        id: todo.id,
+        input: {
+          ...(titleChanged ? { title: trimmed } : {}),
+          ...(periodChanged ? { periodType } : {}),
+        },
+      },
       { onSuccess: () => setEditing(false) }
     );
   };
@@ -58,21 +75,46 @@ export function TodoCard({ todo }: { todo: Todo }) {
           className="flex-1 cursor-grab touch-none select-none active:cursor-grabbing"
         >
           {editing ? (
-            <input
-              autoFocus
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              onBlur={saveTitle}
-              onKeyDown={(e) => e.key === "Enter" && saveTitle()}
-              onPointerDown={(e) => e.stopPropagation()}
-              className="w-full rounded border border-slate-300 px-1 py-0.5 text-sm"
-            />
+            <div className="flex flex-wrap items-center gap-1">
+              <input
+                autoFocus
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && saveEdits()}
+                onPointerDown={(e) => e.stopPropagation()}
+                className="min-w-0 flex-1 rounded border border-slate-300 px-1 py-0.5 text-sm"
+              />
+              <select
+                value={periodType}
+                onChange={(e) => setPeriodType(e.target.value as PeriodType)}
+                onPointerDown={(e) => e.stopPropagation()}
+                className="rounded border border-slate-300 px-1 py-0.5 text-xs"
+              >
+                {(Object.keys(PERIOD_LABELS) as PeriodType[]).map((p) => (
+                  <option key={p} value={p}>
+                    {PERIOD_LABELS[p]}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={saveEdits}
+                className="rounded bg-slate-800 px-2 py-0.5 text-xs text-white"
+              >
+                저장
+              </button>
+            </div>
           ) : (
             <p
-              onDoubleClick={() => setEditing(true)}
+              onDoubleClick={() => {
+                setTitle(todo.title);
+                setPeriodType(todo.periodType);
+                setEditing(true);
+              }}
               className="text-sm font-medium text-slate-800"
             >
-              {todo.title}
+              {todo.title} <span className="text-xs text-slate-400">({PERIOD_LABELS[todo.periodType]})</span>
             </p>
           )}
           {todo.completedAt && (

@@ -1,7 +1,7 @@
 {
-  "tool_name": "PowerShell",
-  "tool_input_preview": "{\"command\":\"Stop-Process -Id 37764,47472,40388 -Force -ErrorAction SilentlyContinue; Start-Sleep -Milliseconds 500; Get-Process -Id 37764,47472,40388 -ErrorAction SilentlyContinue\",\"description\":\"Stop...",
-  "error": "Exit code 1",
-  "timestamp": "2026-09-13T11:58:01.760Z",
+  "tool_name": "Read",
+  "tool_input_preview": "{\"file_path\":\"C:\\\\HJK\\\\Users\\\\HJK\\\\Desktop\\\\claude-practice\\\\todo\\\\.omc\\\\state\\\\sessions\\\\43a8558b-ff7b-4b21-b473-bd5a255133c0\\\\prd.json\"}",
+  "error": "File does not exist. Note: your current working directory is C:\\Users\\HJK\\Desktop\\claude-practice\\todo.",
+  "timestamp": "2026-09-13T12:20:14.752Z",
   "retry_count": 1
 }

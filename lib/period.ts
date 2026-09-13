@@ -42,13 +42,3 @@ export function normalizeForPeriod(date: Date, periodType: PeriodType): Date {
       return normalizeYearStart(date);
   }
 }
-
-export function weekEnd(weekStart: Date): Date {
-  const end = new Date(weekStart);
-  end.setUTCDate(end.getUTCDate() + 7);
-  return end;
-}
-
-export function yearEnd(yearStart: Date): Date {
-  return new Date(Date.UTC(yearStart.getUTCFullYear() + 1, 0, 1));
-}

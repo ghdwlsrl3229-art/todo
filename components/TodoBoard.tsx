@@ -36,8 +36,13 @@ export function TodoBoard({ todos, filter }: { todos: Todo[]; filter: TodosFilte
       : ((over.data.current?.status as Status | undefined) ?? activeStatus);
 
     if (overStatus !== activeStatus) {
-      // cross-column move: change status (optimistic + rollback on failure)
-      updateStatus.mutate({ id: activeId, status: overStatus });
+      // cross-column move: change status (optimistic + rollback on failure).
+      // Land at the end of the destination column rather than wherever its
+      // existing order values happen to sort a default/unset order to.
+      const destColumnTodos = columns[overStatus];
+      const newOrder =
+        destColumnTodos.length === 0 ? 0 : Math.max(...destColumnTodos.map((t) => t.order)) + 1;
+      updateStatus.mutate({ id: activeId, status: overStatus, order: newOrder });
       return;
     }
 

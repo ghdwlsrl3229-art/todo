@@ -55,13 +55,13 @@ export function useUpdateTodoStatus(filter: TodosFilter) {
   const key = todosQueryKey(filter);
 
   return useMutation({
-    mutationFn: ({ id, status }: { id: string; status: Status }) =>
-      api.updateTodo(id, { status }),
-    onMutate: async ({ id, status }) => {
+    mutationFn: ({ id, status, order }: { id: string; status: Status; order?: number }) =>
+      api.updateTodo(id, order === undefined ? { status } : { status, order }),
+    onMutate: async ({ id, status, order }) => {
       await qc.cancelQueries({ queryKey: key });
       const previous = qc.getQueryData<Todo[]>(key);
       qc.setQueryData<Todo[]>(key, (old) =>
-        old?.map((t) => (t.id === id ? { ...t, status } : t)) ?? old
+        old?.map((t) => (t.id === id ? { ...t, status, ...(order !== undefined ? { order } : {}) } : t)) ?? old
       );
       return { previous };
     },
@@ -71,7 +71,11 @@ export function useUpdateTodoStatus(filter: TodosFilter) {
       }
     },
     onSettled: () => {
-      qc.invalidateQueries({ queryKey: key });
+      // Widen beyond the board's own `key`: HistoryPanel, ChildrenPanel, and
+      // the parent picker each cache todos under different filter keys and
+      // would otherwise go stale after a drag (they don't refetch on their
+      // own — staleTime is 5s and refetchOnWindowFocus is off).
+      qc.invalidateQueries({ queryKey: ["todos"] });
     },
   });
 }
@@ -110,7 +114,11 @@ export function useReorderTodos(filter: TodosFilter) {
       }
     },
     onSettled: () => {
-      qc.invalidateQueries({ queryKey: key });
+      // Widen beyond the board's own `key`: HistoryPanel, ChildrenPanel, and
+      // the parent picker each cache todos under different filter keys and
+      // would otherwise go stale after a drag (they don't refetch on their
+      // own — staleTime is 5s and refetchOnWindowFocus is off).
+      qc.invalidateQueries({ queryKey: ["todos"] });
     },
   });
 }

@@ -13,7 +13,7 @@
  * sandboxed dev setup.
  */
 import { MongoMemoryReplSet } from "mongodb-memory-server";
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -38,42 +38,54 @@ function isProcessAlive(pid: number): boolean {
 }
 
 /**
+ * Confirms the given pid is actually a mongod process before we kill it.
+ * Windows recycles pids, so trusting a stale lock file's pid on its own
+ * risks terminating an unrelated process that happens to have reused it.
+ */
+function isMongodProcess(pid: number): boolean {
+  try {
+    if (process.platform === "win32") {
+      const out = execFileSync("tasklist", ["/FI", `PID eq ${pid}`, "/FO", "CSV", "/NH"], {
+        encoding: "utf8",
+      });
+      return out.toLowerCase().includes("mongod");
+    }
+    const out = execFileSync("ps", ["-p", String(pid), "-o", "comm="], { encoding: "utf8" });
+    return out.toLowerCase().includes("mongod");
+  } catch {
+    return false;
+  }
+}
+
+/**
  * This dbPath is only ever used by this single dev script (one mongod at a
  * time). If the previous run was killed ungracefully (e.g. a hard kill that
  * doesn't propagate to grandchild processes), the mongod process it spawned
  * can survive as an orphan holding the dbPath lock, and mongod.lock still
- * contains that orphan's PID. Since we own this directory exclusively, it's
- * safe to terminate that specific orphaned process (matched by the exact
- * PID recorded in the lock file) and clear the lock before starting.
+ * contains that orphan's PID. Terminate that specific orphaned process
+ * (matched by the exact PID recorded in the lock file, and re-confirmed to
+ * actually be a mongod before killing it) so the dbPath wipe below doesn't
+ * hit EBUSY.
  */
-async function clearStaleLock(dbPath: string) {
+async function killOrphanedMongod(dbPath: string) {
   const lockFile = resolve(dbPath, "mongod.lock");
   if (!existsSync(lockFile)) return;
 
   const pid = Number(readFileSync(lockFile, "utf8").trim());
-  if (Number.isInteger(pid) && pid > 0 && isProcessAlive(pid)) {
-    // eslint-disable-next-line no-console
-    console.log(`[dev-with-mongo] found orphaned mongod (pid ${pid}) from a previous unclean shutdown, terminating it`);
-    try {
-      process.kill(pid, "SIGKILL");
-    } catch {
-      // already gone
-    }
-    for (let i = 0; i < 20 && isProcessAlive(pid); i++) {
-      await sleep(100);
-    }
+  if (!(Number.isInteger(pid) && pid > 0 && isProcessAlive(pid) && isMongodProcess(pid))) {
+    return;
   }
 
-  for (let attempt = 0; attempt < 10; attempt++) {
-    try {
-      rmSync(lockFile, { force: true });
-      return;
-    } catch {
-      await sleep(100);
-    }
+  // eslint-disable-next-line no-console
+  console.log(`[dev-with-mongo] found orphaned mongod (pid ${pid}) from a previous unclean shutdown, terminating it`);
+  try {
+    process.kill(pid, "SIGKILL");
+  } catch {
+    // already gone
   }
-  // If it's still locked after all retries, let MongoMemoryReplSet.create
-  // surface the real "DBPathInUse" error rather than swallowing it.
+  for (let i = 0; i < 20 && isProcessAlive(pid); i++) {
+    await sleep(100);
+  }
 }
 
 async function main() {
@@ -81,7 +93,7 @@ async function main() {
   if (existsSync(dbPath)) {
     // Kill any orphaned mongod still holding the previous run's data first,
     // otherwise the wipe below fails with EBUSY on Windows.
-    await clearStaleLock(dbPath);
+    await killOrphanedMongod(dbPath);
     // MongoMemoryReplSet always runs replSetInitiate on startup. Data left
     // over from a previous run already has a replica set config on disk,
     // and re-initiating against that stale config causes the new mongod to

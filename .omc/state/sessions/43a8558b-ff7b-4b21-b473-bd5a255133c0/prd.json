@@ -86,7 +86,7 @@
       "completionCriteriaRevision": 1,
       "architectVerified": false,
       "criterionAmendments": [],
-      "notes": "Verified via automated tests / build gates."
+      "notes": "Post-architect-review fix: params.id and query parentId are now regex-validated as ObjectIds (404/400) before any db call, and reorder/[id] routes catch P2025, so a malformed id returns 404/400 instead of crashing with a 500 (previously only well-formed-but-unknown ids were tested, which could not catch this). POST/PATCH also 400 on a well-formed but nonexistent parentId. 10 new tests added; live-smoke-tested via curl."
     },
     {
       "id": "US-005",
@@ -105,7 +105,7 @@
       "completionCriteriaRevision": 1,
       "architectVerified": false,
       "criterionAmendments": [],
-      "notes": "Verified via automated tests / build gates."
+      "notes": "Post-architect-review fix: TodoCard's inline edit previously covered title only, missing the P0 periodType edit requirement (docs/PRD.md:78-82). Added a periodType <select> alongside the title input in the edit affordance, wired to the same useUpdateTodo mutation; verified live via curl PATCH periodType and confirmed targetDate re-normalizes under the new period."
     },
     {
       "id": "US-006",
@@ -140,7 +140,7 @@
       "completionCriteriaRevision": 1,
       "architectVerified": false,
       "criterionAmendments": [],
-      "notes": "Verified via automated tests / build gates."
+      "notes": "Verified via automated tests / build gates. Post-architect-review fix (code quality, not an AC): cross-column drops previously kept whatever `order` the card already had, which could jump it to the top of the destination column; TodoBoard.tsx now computes end-of-column order on cross-column drop."
     },
     {
       "id": "US-008",
@@ -169,14 +169,24 @@
         "Create/edit form for a daily Todo allows selecting a parent weekly Todo; for a weekly Todo allows selecting a parent yearly Todo",
         "The parent's detail view lists its linked children",
         "Deleting a parent Todo clears parentId on its children (no orphaned references) via explicit application-level cleanup",
-        "lib/progress.ts exports calcYearlyProgress(yearlyTodo, linkedWeeklyTodos) using linked weekly completion as the basis, with a unit test"
+        "lib/progress.ts exports calcYearlyProgress(linkedWeeklyTodos) using linked weekly completion as the basis, with a unit test"
       ],
       "passes": true,
-      "governingCriteriaRevision": 1,
-      "completionCriteriaRevision": 1,
+      "governingCriteriaRevision": 2,
+      "completionCriteriaRevision": 2,
       "architectVerified": false,
-      "criterionAmendments": [],
-      "notes": "Verified via automated tests / build gates."
+      "criterionAmendments": [
+        {
+          "kind": "replaced",
+          "original": "lib/progress.ts exports calcYearlyProgress(yearlyTodo, linkedWeeklyTodos) using linked weekly completion as the basis, with a unit test",
+          "replacement": "lib/progress.ts exports calcYearlyProgress(linkedWeeklyTodos) using linked weekly completion as the basis, with a unit test",
+          "reason": "The yearly todo's own status field is irrelevant to the calculation (progress is defined purely by completion of its linked weekly children, per PRD docs/PRD.md:171-172: '연결된 주간 목표 완료 기준으로 자동 계산'). Carrying an unused `yearlyTodo` parameter forever would misrepresent the function's actual dependencies and was flagged by architect review as a code-quality issue independent of this amendment.",
+          "evidence": "Architect review (2026-09-13, this session) inspected lib/progress.ts:18 and confirmed the single-arg implementation is a correct, tested alias of calcWeeklyProgress and is what ChildrenPanel.tsx:33 actually calls; flagged the unamended prd.json/code mismatch as a blocker while agreeing the single-arg design is not a defect in itself.",
+          "authority": "ses_43a8558b-ff7b-4b21-b473-bd5a255133c0",
+          "timestamp": "2026-09-13T12:15:00.000Z"
+        }
+      ],
+      "notes": "Verified via automated tests / build gates. Amendment filed after architect review flagged the prd.json/code signature mismatch (previously passes:true with an empty criterionAmendments ledger, which the review correctly rejected)."
     },
     {
       "id": "US-010",
@@ -194,7 +204,7 @@
       "completionCriteriaRevision": 1,
       "architectVerified": false,
       "criterionAmendments": [],
-      "notes": "Verified via automated tests / build gates."
+      "notes": "Verified via automated tests / build gates. Post-architect-review fix: reorder/route.ts no longer writes `status` (was redundant for its only caller and could set DONE without completedAt, bypassing the invariant [id]/route.ts enforces); test added confirming a reorder call cannot change status/completedAt."
     },
     {
       "id": "US-011",
@@ -212,7 +222,7 @@
       "completionCriteriaRevision": 1,
       "architectVerified": false,
       "criterionAmendments": [],
-      "notes": "npm run build, npx tsc --noEmit, npm run lint, and npm run test (26/26) all green as of this pass."
+      "notes": "npm run build, npx tsc --noEmit, npm run lint, and npm run test (36/36) all green as of this pass (post-architect-review fixes)."
     }
   ]
 }

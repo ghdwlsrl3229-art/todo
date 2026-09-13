@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { createTodoSchema, PeriodTypeEnum, StatusEnum } from "@/lib/validation";
+import { createTodoSchema, isValidObjectId, PeriodTypeEnum, StatusEnum } from "@/lib/validation";
 import { normalizeForPeriod } from "@/lib/period";
 import type { PeriodType } from "@/lib/types";
 import type { Prisma } from "@prisma/client";
@@ -46,6 +46,9 @@ export async function GET(request: NextRequest) {
 
   const parentId = searchParams.get("parentId");
   if (parentId !== null) {
+    if (parentId !== "null" && !isValidObjectId(parentId)) {
+      return NextResponse.json({ error: "invalid parentId" }, { status: 400 });
+    }
     where.parentId = parentId === "null" ? null : parentId;
   }
 
@@ -70,6 +73,13 @@ export async function POST(request: NextRequest) {
   const { title, periodType, targetDate, parentId } = parsed.data;
   const normalizedTargetDate = normalizeForPeriod(targetDate, periodType);
 
+  if (parentId !== undefined) {
+    const parentExists = await prisma.todo.findUnique({ where: { id: parentId } });
+    if (!parentExists) {
+      return NextResponse.json({ error: "parent not found" }, { status: 400 });
+    }
+  }
+
   const maxOrder = await prisma.todo.aggregate({
     where: { status: "TODO" },
     _max: { order: true },
@@ -81,8 +91,8 @@ export async function POST(request: NextRequest) {
       periodType,
       targetDate: normalizedTargetDate,
       status: "TODO",
-      parentId: parentId ?? null,
       order: (maxOrder._max.order ?? 0) + 1,
+      ...(parentId !== undefined ? { parent: { connect: { id: parentId } } } : {}),
     },
   });
 

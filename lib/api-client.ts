@@ -46,6 +46,7 @@ export interface UpdateTodoInput {
   targetDate?: string;
   status?: Status;
   parentId?: string | null;
+  order?: number;
 }
 
 export function updateTodo(id: string, input: UpdateTodoInput): Promise<Todo> {

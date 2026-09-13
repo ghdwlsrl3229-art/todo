@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useTodosQuery } from "@/hooks/useTodos";
 import { calcWeeklyProgress } from "@/lib/progress";
+import { todayIsoLocal } from "@/lib/date";
 import type { PeriodType } from "@/lib/types";
 import { PeriodTabs } from "./PeriodTabs";
 import { CreateTodoForm } from "./CreateTodoForm";
@@ -10,13 +11,9 @@ import { TodoBoard } from "./TodoBoard";
 import { ProgressBar } from "./ProgressBar";
 import { HistoryPanel } from "./HistoryPanel";
 
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 export function TodoApp() {
   const [periodType, setPeriodType] = useState<PeriodType>("DAILY");
-  const [referenceDate, setReferenceDate] = useState<string>(todayIso());
+  const [referenceDate, setReferenceDate] = useState<string>(todayIsoLocal());
 
   const filter = { periodType, targetDate: referenceDate };
   const { data: todos, isLoading, isError, error } = useTodosQuery(filter);

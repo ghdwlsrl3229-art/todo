@@ -55,6 +55,24 @@ describe("POST /api/todos", () => {
     );
     expect(res.status).toBe(400);
   });
+
+  it("rejects a malformed parentId with 400 (not a 500 from an unguarded db call)", async () => {
+    const res = await POST(
+      req("http://localhost/api/todos", jsonInit("POST", {
+        title: "Bad parent", periodType: "DAILY", targetDate: "2026-09-14", parentId: "not-an-objectid",
+      }))
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects a well-formed but nonexistent parentId with 400", async () => {
+    const res = await POST(
+      req("http://localhost/api/todos", jsonInit("POST", {
+        title: "Dangling parent", periodType: "DAILY", targetDate: "2026-09-14", parentId: "000000000000000000000000",
+      }))
+    );
+    expect(res.status).toBe(400);
+  });
 });
 
 describe("GET /api/todos", () => {
@@ -90,6 +108,11 @@ describe("GET /api/todos", () => {
     expect(body).toHaveLength(1);
     expect(body[0].status).toBe("DOING");
   });
+
+  it("rejects a malformed parentId query param with 400", async () => {
+    const res = await GET(req("http://localhost/api/todos?parentId=not-an-objectid"));
+    expect(res.status).toBe(400);
+  });
 });
 
 describe("PATCH /api/todos/:id", () => {
@@ -109,16 +132,59 @@ describe("PATCH /api/todos/:id", () => {
     expect(body.completedAt).not.toBeNull();
   });
 
-  it("returns 404 for an unknown id", async () => {
+  it("returns 404 for a well-formed but unknown id", async () => {
     const res = await PATCH(
       req("http://localhost/api/todos/000000000000000000000000", jsonInit("PATCH", { title: "x" })),
       { params: { id: "000000000000000000000000" } }
     );
     expect(res.status).toBe(404);
   });
+
+  it("returns 404 (not 500) for a malformed id", async () => {
+    const res = await PATCH(
+      req("http://localhost/api/todos/not-an-objectid", jsonInit("PATCH", { title: "x" })),
+      { params: { id: "not-an-objectid" } }
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("updates periodType and re-normalizes targetDate under the new period", async () => {
+    const created = await POST(req("http://localhost/api/todos", jsonInit("POST", {
+      title: "Retarget", periodType: "DAILY", targetDate: "2026-09-17", // Thursday
+    })));
+    const { id } = await created.json();
+
+    const res = await PATCH(
+      req(`http://localhost/api/todos/${id}`, jsonInit("PATCH", { periodType: "WEEKLY" })),
+      { params: { id } }
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.periodType).toBe("WEEKLY");
+    // 2026-09-17 (Thu) normalizes to that week's Monday, 2026-09-14
+    expect(body.targetDate).toBe("2026-09-14T00:00:00.000Z");
+  });
+
+  it("rejects a malformed parentId in the update body with 400", async () => {
+    const created = await POST(req("http://localhost/api/todos", jsonInit("POST", {
+      title: "Bad link", periodType: "DAILY", targetDate: "2026-09-14",
+    })));
+    const { id } = await created.json();
+
+    const res = await PATCH(
+      req(`http://localhost/api/todos/${id}`, jsonInit("PATCH", { parentId: "not-an-objectid" })),
+      { params: { id } }
+    );
+    expect(res.status).toBe(400);
+  });
 });
 
 describe("DELETE /api/todos/:id", () => {
+  it("returns 404 (not 500) for a malformed id", async () => {
+    const res = await DELETE(req("http://localhost/api/todos/not-an-objectid"), { params: { id: "not-an-objectid" } });
+    expect(res.status).toBe(404);
+  });
+
   it("deletes a todo and clears parentId on its children", async () => {
     const parentRes = await POST(req("http://localhost/api/todos", jsonInit("POST", {
       title: "Yearly goal", periodType: "YEARLY", targetDate: "2026-01-01",
@@ -156,5 +222,34 @@ describe("PATCH /api/todos/reorder", () => {
     const refreshedA = await prisma.todo.findUnique({ where: { id: a.id } });
     const refreshedB = await prisma.todo.findUnique({ where: { id: b.id } });
     expect(refreshedB?.order).toBeLessThan(refreshedA?.order ?? Infinity);
+  });
+
+  it("does not let a reorder call set status/completedAt (not this endpoint's job)", async () => {
+    const a = await (await POST(req("http://localhost/api/todos", jsonInit("POST", { title: "A", periodType: "DAILY", targetDate: "2026-09-14" })))).json();
+
+    await REORDER(req("http://localhost/api/todos/reorder", jsonInit("PATCH", {
+      status: "DONE",
+      orderedIds: [a.id],
+    })));
+
+    const refreshed = await prisma.todo.findUnique({ where: { id: a.id } });
+    expect(refreshed?.status).toBe("TODO");
+    expect(refreshed?.completedAt).toBeNull();
+  });
+
+  it("returns 404 (not 500) for an unknown id in the transaction", async () => {
+    const res = await REORDER(req("http://localhost/api/todos/reorder", jsonInit("PATCH", {
+      status: "TODO",
+      orderedIds: ["000000000000000000000000"],
+    })));
+    expect(res.status).toBe(404);
+  });
+
+  it("rejects a malformed id in orderedIds with 400", async () => {
+    const res = await REORDER(req("http://localhost/api/todos/reorder", jsonInit("PATCH", {
+      status: "TODO",
+      orderedIds: ["not-an-objectid"],
+    })));
+    expect(res.status).toBe(400);
   });
 });
