@@ -18,7 +18,7 @@
       "passes": true,
       "governingCriteriaRevision": 1,
       "completionCriteriaRevision": 1,
-      "architectVerified": false,
+      "architectVerified": true,
       "criterionAmendments": [],
       "notes": "Verified: npm run dev boots (smoke-tested live, curl 200 on / and /api/todos), tsc/lint/build all clean, docs/.omc untouched."
     },
@@ -37,7 +37,7 @@
       "passes": true,
       "governingCriteriaRevision": 2,
       "completionCriteriaRevision": 2,
-      "architectVerified": false,
+      "architectVerified": true,
       "criterionAmendments": [
         {
           "kind": "replaced",
@@ -64,7 +64,7 @@
       "passes": true,
       "governingCriteriaRevision": 1,
       "completionCriteriaRevision": 1,
-      "architectVerified": false,
+      "architectVerified": true,
       "criterionAmendments": [],
       "notes": "Verified via automated tests / build gates."
     },
@@ -84,7 +84,7 @@
       "passes": true,
       "governingCriteriaRevision": 1,
       "completionCriteriaRevision": 1,
-      "architectVerified": false,
+      "architectVerified": true,
       "criterionAmendments": [],
       "notes": "Post-architect-review fix (round 1): params.id and query parentId are now regex-validated as ObjectIds (404/400) before any db call, and reorder/[id] routes catch P2025, so a malformed id returns 404/400 instead of crashing with a 500 (previously only well-formed-but-unknown ids were tested, which could not catch this). POST/PATCH also 400 on a well-formed but nonexistent parentId. 10 new tests added; live-smoke-tested via curl. Post-review fix (round 2): createTodoSchema.parentId was .optional() without .nullable(), so CreateTodoForm's `parentId: parentId || null` payload was rejected by its own schema on every submit with no parent chosen -- meaning no todo could be created from the UI at all unless a parent was explicitly picked, and YEARLY todos (no parent picker) could never be created. Fixed to .nullable().optional(), matching updateTodoSchema; route.ts POST changed `!== undefined` to `!= null` accordingly. Live-smoke-tested both the null-parentId and YEARLY-no-parent-field cases via curl (201 both)."
     },
@@ -103,7 +103,7 @@
       "passes": true,
       "governingCriteriaRevision": 1,
       "completionCriteriaRevision": 1,
-      "architectVerified": false,
+      "architectVerified": true,
       "criterionAmendments": [],
       "notes": "Post-architect-review fix: TodoCard's inline edit previously covered title only, missing the P0 periodType edit requirement (docs/PRD.md:78-82). Added a periodType <select> alongside the title input in the edit affordance, wired to the same useUpdateTodo mutation; verified live via curl PATCH periodType and confirmed targetDate re-normalizes under the new period."
     },
@@ -120,7 +120,7 @@
       "passes": true,
       "governingCriteriaRevision": 1,
       "completionCriteriaRevision": 1,
-      "architectVerified": false,
+      "architectVerified": true,
       "criterionAmendments": [],
       "notes": "Verified via automated tests / build gates."
     },
@@ -138,7 +138,7 @@
       "passes": true,
       "governingCriteriaRevision": 1,
       "completionCriteriaRevision": 1,
-      "architectVerified": false,
+      "architectVerified": true,
       "criterionAmendments": [],
       "notes": "Verified via automated tests / build gates. Post-architect-review fix (code quality, not an AC): cross-column drops previously kept whatever `order` the card already had, which could jump it to the top of the destination column; TodoBoard.tsx now computes end-of-column order on cross-column drop."
     },
@@ -156,7 +156,7 @@
       "passes": true,
       "governingCriteriaRevision": 1,
       "completionCriteriaRevision": 1,
-      "architectVerified": false,
+      "architectVerified": true,
       "criterionAmendments": [],
       "notes": "Verified via automated tests / build gates."
     },
@@ -174,7 +174,7 @@
       "passes": true,
       "governingCriteriaRevision": 2,
       "completionCriteriaRevision": 2,
-      "architectVerified": false,
+      "architectVerified": true,
       "criterionAmendments": [
         {
           "kind": "replaced",
@@ -202,7 +202,7 @@
       "passes": true,
       "governingCriteriaRevision": 1,
       "completionCriteriaRevision": 1,
-      "architectVerified": false,
+      "architectVerified": true,
       "criterionAmendments": [],
       "notes": "Verified via automated tests / build gates. Post-architect-review fix: reorder/route.ts no longer writes `status` (was redundant for its only caller and could set DONE without completedAt, bypassing the invariant [id]/route.ts enforces); test added confirming a reorder call cannot change status/completedAt."
     },
@@ -220,9 +220,14 @@
       "passes": true,
       "governingCriteriaRevision": 1,
       "completionCriteriaRevision": 1,
-      "architectVerified": false,
+      "architectVerified": true,
       "criterionAmendments": [],
       "notes": "npm run build, npx tsc --noEmit, npm run lint, and npm run test (40/40) all green as of this pass (post-architect-review round 2 fixes; also fixed a test-infra gap where RTL wasn't cleaning up between tests since Vitest globals aren't enabled)."
     }
-  ]
+  ],
+  "architectApproval": {
+    "verdict": "APPROVED",
+    "round": 3,
+    "timestamp": "2026-09-13T12:42:27.830Z"
+  }
 }

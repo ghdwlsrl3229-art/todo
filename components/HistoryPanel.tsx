@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useTodosQuery } from "@/hooks/useTodos";
 import { todayIsoLocal } from "@/lib/date";
+import { PERIOD_LABELS, PERIOD_TYPES } from "@/lib/labels";
 import type { PeriodType } from "@/lib/types";
 
 export function HistoryPanel() {
@@ -30,9 +31,11 @@ export function HistoryPanel() {
           onChange={(e) => setPeriodType(e.target.value as PeriodType)}
           className="rounded-md border border-slate-300 px-2 py-1 text-sm"
         >
-          <option value="DAILY">일일</option>
-          <option value="WEEKLY">주간</option>
-          <option value="YEARLY">1년</option>
+          {PERIOD_TYPES.map((p) => (
+            <option key={p} value={p}>
+              {PERIOD_LABELS[p]}
+            </option>
+          ))}
         </select>
         <input
           type="date"

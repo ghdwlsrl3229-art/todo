@@ -3,7 +3,7 @@ import { z } from "zod";
 export const StatusEnum = z.enum(["TODO", "DOING", "DONE"]);
 export const PeriodTypeEnum = z.enum(["DAILY", "WEEKLY", "YEARLY"]);
 
-export const OBJECT_ID_REGEX = /^[0-9a-f]{24}$/i;
+const OBJECT_ID_REGEX = /^[0-9a-f]{24}$/i;
 export const isValidObjectId = (id: string) => OBJECT_ID_REGEX.test(id);
 const objectIdSchema = z.string().regex(OBJECT_ID_REGEX, "invalid id");
 

@@ -8,33 +8,13 @@
  * handlers (not a mock), the same way tests/integration/weekly-progress
  * does, so it exercises the actual payload CreateTodoForm builds.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { NextRequest } from "next/server";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { GET, POST } from "@/app/api/todos/route";
+import { beforeEach, describe, expect, it } from "vitest";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { prisma } from "@/lib/prisma";
 import { CreateTodoForm } from "@/components/CreateTodoForm";
+import { renderWithQueryClient as renderWithClient, stubFetchToRouteHandlers } from "../helpers/test-utils";
 
-vi.stubGlobal(
-  "fetch",
-  vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-    const rawUrl = typeof input === "string" ? input : (input as Request).url;
-    const url = new URL(rawUrl, "http://localhost");
-    const method = (init?.method ?? "GET").toUpperCase();
-    const nextReq = new NextRequest(new Request(url.toString(), init));
-
-    if (url.pathname === "/api/todos" && method === "GET") return GET(nextReq);
-    if (url.pathname === "/api/todos" && method === "POST") return POST(nextReq);
-
-    throw new Error(`unhandled fetch in test: ${method} ${url.pathname}`);
-  })
-);
-
-function renderWithClient(ui: React.ReactElement) {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
-}
+stubFetchToRouteHandlers();
 
 describe("CreateTodoForm (component, against real route handlers)", () => {
   beforeEach(async () => {

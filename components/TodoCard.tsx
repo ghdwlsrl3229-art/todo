@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useDeleteTodo, useUpdateTodo } from "@/hooks/useTodos";
+import { PERIOD_LABELS, PERIOD_TYPES } from "@/lib/labels";
 import type { PeriodType, Todo } from "@/lib/types";
 import { ChildrenPanel } from "./ChildrenPanel";
 
@@ -11,12 +12,6 @@ const childPeriodTypeFor = (p: PeriodType): PeriodType | undefined => {
   if (p === "YEARLY") return "WEEKLY";
   if (p === "WEEKLY") return "DAILY";
   return undefined;
-};
-
-const PERIOD_LABELS: Record<PeriodType, string> = {
-  DAILY: "일일",
-  WEEKLY: "주간",
-  YEARLY: "1년",
 };
 
 export function TodoCard({ todo }: { todo: Todo }) {
@@ -90,7 +85,7 @@ export function TodoCard({ todo }: { todo: Todo }) {
                 onPointerDown={(e) => e.stopPropagation()}
                 className="rounded border border-slate-300 px-1 py-0.5 text-xs"
               >
-                {(Object.keys(PERIOD_LABELS) as PeriodType[]).map((p) => (
+                {PERIOD_TYPES.map((p) => (
                   <option key={p} value={p}>
                     {PERIOD_LABELS[p]}
                   </option>

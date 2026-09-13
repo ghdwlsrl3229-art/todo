@@ -4,36 +4,15 @@
  * database) on create and on status change, not just via the pure
  * calcWeeklyProgress function in isolation.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { NextRequest } from "next/server";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { GET, POST } from "@/app/api/todos/route";
-import { PATCH } from "@/app/api/todos/[id]/route";
+import { beforeEach, describe, expect, it } from "vitest";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { useCreateTodo, useTodosQuery, useUpdateTodoStatus } from "@/hooks/useTodos";
 import { calcWeeklyProgress } from "@/lib/progress";
 import { prisma } from "@/lib/prisma";
 import type { TodosFilter } from "@/lib/types";
+import { renderWithQueryClient, stubFetchToRouteHandlers } from "../helpers/test-utils";
 
-// Route fetch() calls straight to the real Next.js route handlers, so this
-// test exercises the same code path the browser would use.
-vi.stubGlobal(
-  "fetch",
-  vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-    const rawUrl = typeof input === "string" ? input : (input as Request).url;
-    const url = new URL(rawUrl, "http://localhost");
-    const method = (init?.method ?? "GET").toUpperCase();
-    const nextReq = new NextRequest(new Request(url.toString(), init));
-
-    if (url.pathname === "/api/todos" && method === "GET") return GET(nextReq);
-    if (url.pathname === "/api/todos" && method === "POST") return POST(nextReq);
-
-    const idMatch = url.pathname.match(/^\/api\/todos\/([^/]+)$/);
-    if (idMatch && method === "PATCH") return PATCH(nextReq, { params: { id: idMatch[1] } });
-
-    throw new Error(`unhandled fetch in test: ${method} ${url.pathname}`);
-  })
-);
+stubFetchToRouteHandlers();
 
 const filter: TodosFilter = { periodType: "WEEKLY", targetDate: "2026-09-14" };
 
@@ -68,12 +47,7 @@ describe("weekly progress recalculation (integration)", () => {
   });
 
   it("starts at 0% with no todos, then updates as todos are created and completed", async () => {
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    render(
-      <QueryClientProvider client={queryClient}>
-        <Harness />
-      </QueryClientProvider>
-    );
+    renderWithQueryClient(<Harness />);
 
     await waitFor(() => expect(screen.getByTestId("progress").textContent).toBe("0"));
 

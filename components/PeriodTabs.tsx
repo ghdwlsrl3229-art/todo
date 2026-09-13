@@ -1,12 +1,7 @@
 "use client";
 
+import { PERIOD_LABELS, PERIOD_TYPES } from "@/lib/labels";
 import type { PeriodType } from "@/lib/types";
-
-const TABS: { value: PeriodType; label: string }[] = [
-  { value: "DAILY", label: "일일" },
-  { value: "WEEKLY", label: "주간" },
-  { value: "YEARLY", label: "1년" },
-];
 
 export function PeriodTabs({
   active,
@@ -22,18 +17,18 @@ export function PeriodTabs({
   return (
     <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
       <div className="flex gap-1 rounded-lg bg-slate-200 p-1">
-        {TABS.map((tab) => (
+        {PERIOD_TYPES.map((value) => (
           <button
-            key={tab.value}
+            key={value}
             type="button"
-            onClick={() => onChange(tab.value)}
+            onClick={() => onChange(value)}
             className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
-              active === tab.value
+              active === value
                 ? "bg-white text-slate-900 shadow"
                 : "text-slate-600 hover:text-slate-900"
             }`}
           >
-            {tab.label}
+            {PERIOD_LABELS[value]}
           </button>
         ))}
       </div>

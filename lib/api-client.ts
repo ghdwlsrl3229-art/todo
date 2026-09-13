@@ -9,7 +9,7 @@ async function handle<T>(res: Response): Promise<T> {
   return res.json();
 }
 
-export function buildQuery(filter: TodosFilter): string {
+function buildQuery(filter: TodosFilter): string {
   const params = new URLSearchParams();
   if (filter.periodType) params.set("periodType", filter.periodType);
   if (filter.status) params.set("status", filter.status);
