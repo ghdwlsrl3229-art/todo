@@ -1,0 +1,7 @@
+{
+  "tool_name": "PowerShell",
+  "tool_input_preview": "{\"command\":\"Stop-Process -Id 37764,47472,40388 -Force -ErrorAction SilentlyContinue; Start-Sleep -Milliseconds 500; Get-Process -Id 37764,47472,40388 -ErrorAction SilentlyContinue\",\"description\":\"Stop...",
+  "error": "Exit code 1",
+  "timestamp": "2026-09-13T11:58:01.760Z",
+  "retry_count": 1
+}

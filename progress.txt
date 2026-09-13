@@ -1,0 +1,29 @@
+Ralph progress log - Todo App
+==============================
+
+[iteration 1] PRD created at .omc/state/sessions/43a8558b-ff7b-4b21-b473-bd5a255133c0/prd.json (11 stories, US-001..US-011).
+Environment findings:
+- No Docker, no local mongod binary. npm registry and fastdl.mongodb.org reachable.
+- Decision: use mongodb-memory-server for local dev (not just tests), single-node replica set, persistent dbPath under .mongo-data/, started via scripts/dev-with-mongo.ts which spawns `next dev` as a child so the mongod process lifetime matches the dev server.
+- git repo initialized, baseline commit made (docs/ + plan).
+
+[iteration 2] Full implementation complete. All 11 PRD stories pass:true.
+- Scaffolded Next.js 14 (App Router, TS, Tailwind) manually (create-next-app would refuse the non-empty dir with docs/.omc present).
+- prisma/schema.prisma: Todo model on mongodb provider (ObjectId id, Status/PeriodType enums, self-relation parentId/children, order, completedAt, timestamps, indexes).
+- lib/period.ts: normalizeDailyDate/normalizeWeekStart(ISO Monday)/normalizeYearStart + normalizeForPeriod, 8 unit tests incl. year-boundary weeks.
+- lib/progress.ts: calcWeeklyProgress (0 on empty, rounded %), calcYearlyProgress (same shape, driven by linked weekly completion).
+- lib/validation.ts: zod schemas (title non-empty/trimmed, periodType/status enums, coerced dates).
+- API routes: app/api/todos/route.ts (GET filter by periodType+status+targetDate+parentId, POST), app/api/todos/[id]/route.ts (PATCH incl. completedAt auto-set/clear + parent connect/disconnect, DELETE with transactional parentId cleanup on children), app/api/todos/reorder/route.ts (PATCH batch order+status).
+- hooks/useTodos.ts: TanStack Query hooks; useUpdateTodoStatus and useReorderTodos use onMutate snapshot + onError rollback for optimistic DnD.
+- components/: PeriodTabs, CreateTodoForm (with parent picker for P1 linking), TodoBoard/TodoColumn/TodoCard (dnd-kit, cross-column status change + same-column reorder), ChildrenPanel (P1 hierarchy + yearly progress badge), ProgressBar, HistoryPanel (P1 completion history w/ filters), TodoApp (orchestrator).
+- Tests (26, all passing): lib/period.test.ts, lib/progress.test.ts, tests/api/todos.test.ts (9, hits real route handlers against real mongodb-memory-server DB), tests/hooks/useUpdateTodoStatus.test.tsx (2, deterministic optimistic+rollback via a manually-controlled fetch promise), tests/integration/weekly-progress.test.tsx (1, renders real hooks against real route handlers, proves progress recalculates on create/complete).
+- Quality gates all green: npx tsc --noEmit, npx next lint, npm run build, npm run test.
+
+Bugs found and fixed during implementation (real, not hypothetical):
+1. Prisma MongoDB connector requires relation-based updates for self-relation FK (`parent: {connect/disconnect}`), not the raw `parentId` scalar, on TodoUpdateInput. Fixed in app/api/todos/[id]/route.ts.
+2. vitest.config.ts failed to load ("ESM file cannot be loaded by require") because vite-tsconfig-paths is ESM-only and the project has no "type":"module". Fixed by renaming to vitest.config.mts.
+3. DnD rollback test was flaky/racey with an instantly-resolving mock fetch (assertion of the transient optimistic state sometimes ran after rollback already completed). Fixed by using a manually-controlled (deferred) fetch promise so the optimistic state is observed deterministically before forcing the rejection.
+4. scripts/dev-with-mongo.ts: MongoMemoryReplSet with a *persistent* dbPath is unreliable — (a) an ungracefully-killed previous run leaves an orphaned mongod holding dbPath's lock file ("DBPathInUse" on next start), and (b) even after clearing that, replSetInitiate against a dbPath that already has replica-set config from the prior run causes a connection reset instead of completing init. Fixed by: killing the orphaned mongod matched by the exact PID recorded in mongod.lock, then wiping+recreating dbPath on every dev-server start (local dev data intentionally does not persist across `npm run dev` restarts — documented as a PRD criterion amendment on US-002). Also fixed a Windows `spawn EINVAL` when invoking the `next.cmd` shim without `shell:true`.
+5. Found (not created) a `.env` file with what looks like real MongoDB Atlas credentials appearing in the project root mid-session (matches the user's email in the username). Not used anywhere in the app (code reads DATABASE_URL, not MONGODB_URI); left untouched; flagged to the user in chat.
+
+Environment notes for whoever resumes this: no Docker, no local mongod binary, but npm registry and MongoDB's binary download server are reachable, so mongodb-memory-server works for both dev and test. `npm run dev` picks a free port if 3000+ are occupied by other processes on the machine (observed: user has several unrelated dev servers already running on this machine — do not assume port 3000).

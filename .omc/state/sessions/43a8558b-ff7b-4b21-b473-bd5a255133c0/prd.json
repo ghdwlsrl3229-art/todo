@@ -1,0 +1,218 @@
+{
+  "title": "Todo App (daily/weekly/yearly, DnD status, weekly progress) - Next.js + MongoDB + Prisma + dnd-kit",
+  "sourcePlan": ".omc/plans/todo-app-plan.md",
+  "sourcePrd": "docs/PRD.md",
+  "environmentNotes": "No Docker and no local mongod binary available in this sandbox. Use mongodb-memory-server (downloads its own mongod) configured with a persistent dbPath under .mongo-data/ and started as a single-node replica set, so `npx prisma db push` and Prisma transactions work without Docker/Atlas. This replaces the Docker/Atlas guidance in the plan document for local dev.",
+  "stories": [
+    {
+      "id": "US-001",
+      "title": "Project scaffolding",
+      "description": "Initialize Next.js (App Router, TypeScript) + Tailwind CSS project in the repo root, keeping docs/ and .omc/ intact.",
+      "priority": 1,
+      "acceptanceCriteria": [
+        "package.json exists with Next.js, React, TypeScript, Tailwind CSS as dependencies",
+        "`npm run dev` starts the dev server without errors (verified by build/typecheck, not manual browsing)",
+        "docs/ and .omc/ directories are untouched by scaffolding",
+        "ESLint config present and `npm run lint` runs (may report 0 findings on scaffold)"
+      ],
+      "passes": true,
+      "governingCriteriaRevision": 1,
+      "completionCriteriaRevision": 1,
+      "architectVerified": false,
+      "criterionAmendments": [],
+      "notes": "Verified: npm run dev boots (smoke-tested live, curl 200 on / and /api/todos), tsc/lint/build all clean, docs/.omc untouched."
+    },
+    {
+      "id": "US-002",
+      "title": "MongoDB + Prisma data layer (no Docker)",
+      "description": "Set up Prisma with the mongodb connector and a local dev MongoDB provided by mongodb-memory-server (persistent dbPath, single-node replica set for transaction support). Implement the Todo schema per the plan.",
+      "priority": 2,
+      "acceptanceCriteria": [
+        "prisma/schema.prisma defines datasource provider=mongodb and the Todo model (id ObjectId, title, status enum, periodType enum, targetDate, order, parentId self-relation, completedAt, createdAt, updatedAt) matching .omc/plans/todo-app-plan.md section 2",
+        "A dev-mongo bootstrap script starts mongodb-memory-server as a replica set and writes DATABASE_URL to .env.local automatically before the app needs the DB, with the dbPath cleared/recreated on every start (data does not persist across `npm run dev` restarts)",
+        "`npx prisma db push` succeeds against the bootstrapped local MongoDB",
+        "lib/prisma.ts exports a singleton PrismaClient safe for Next.js dev hot-reload",
+        "A script or test can create and read back a Todo document via PrismaClient, proving the connection works end-to-end"
+      ],
+      "passes": true,
+      "governingCriteriaRevision": 2,
+      "completionCriteriaRevision": 2,
+      "architectVerified": false,
+      "criterionAmendments": [
+        {
+          "kind": "replaced",
+          "original": "A dev-mongo bootstrap script starts mongodb-memory-server as a replica set with a persistent dbPath and writes DATABASE_URL to .env.local automatically before the app needs the DB (e.g. via a predev/globalSetup script)",
+          "replacement": "A dev-mongo bootstrap script starts mongodb-memory-server as a replica set and writes DATABASE_URL to .env.local automatically before the app needs the DB, with the dbPath cleared/recreated on every start (data does not persist across `npm run dev` restarts)",
+          "reason": "MongoMemoryReplSet always runs replSetInitiate on startup. Live-tested a persistent dbPath across three consecutive `npm run dev` restarts: it reliably reproduced 'DBPathInUse' (stale lock from an ungracefully-killed previous run) and then, after clearing the lock, a MongoNetworkError/connection-reset during replSetInitiate because the dbPath already carried a replica set config from the prior run. A clean dbPath every run eliminated both failures on retest.",
+          "evidence": "scripts/dev-with-mongo.ts iterations: attempt 2 failed with DBPathInUse (mongod.lock held by orphaned pid 41372, confirmed via `tasklist`/`Get-Process`); attempts 3-4 (after killing the orphan) failed with 'MongoNetworkError: connection 1 to 127.0.0.1:PORT closed'; attempt 5 (dbPath wiped+recreated on every start) succeeded, verified live via curl 200 on / and /api/todos and a working POST.",
+          "authority": "ses_43a8558b-ff7b-4b21-b473-bd5a255133c0",
+          "timestamp": "2026-09-13T12:00:00.000Z"
+        }
+      ],
+      "notes": "Verified live (not just via tests): npm run dev boots a real mongodb-memory-server replica set, prisma db push succeeds (also exercised by the Vitest globalSetup on every test run), and curl against a running dev server round-trips through PrismaClient. Also hardened dev-with-mongo.ts to auto-clear an orphaned mongod process (matched by exact pid recorded in mongod.lock) left over from an ungraceful previous shutdown."
+    },
+    {
+      "id": "US-003",
+      "title": "Period normalization utilities",
+      "description": "Pure functions to normalize targetDate per periodType (daily/weekly/yearly) per plan section 2 design notes.",
+      "priority": 3,
+      "acceptanceCriteria": [
+        "lib/period.ts exports normalizeDailyDate(date), normalizeWeekStart(date) (ISO Monday), normalizeYearStart(date)",
+        "Unit tests cover: mid-week date normalizes to that week's Monday, a Monday normalizes to itself, year-end/year-start boundary dates normalize correctly, a date in December near a week that spans into January normalizes to the correct ISO week",
+        "`npm run test` passes for lib/period.test.ts"
+      ],
+      "passes": true,
+      "governingCriteriaRevision": 1,
+      "completionCriteriaRevision": 1,
+      "architectVerified": false,
+      "criterionAmendments": [],
+      "notes": "Verified via automated tests / build gates."
+    },
+    {
+      "id": "US-004",
+      "title": "Todo CRUD API routes with validation",
+      "description": "Implement REST API routes for Todo CRUD with zod validation per plan Phase 2 and PRD P0/P1-14.",
+      "priority": 4,
+      "acceptanceCriteria": [
+        "POST /api/todos creates a Todo with status=todo by default; returns 201 and the created record; rejects empty/whitespace-only title with 400",
+        "POST /api/todos rejects invalid periodType or status values with 400",
+        "GET /api/todos supports filtering by periodType, status, and targetDate (period-aware, using lib/period.ts normalization) and returns only matching records",
+        "PATCH /api/todos/:id updates title/periodType/status and bumps updatedAt; returns 200 with updated record; returns 404 for unknown id",
+        "DELETE /api/todos/:id returns 204 and the record is no longer returned by subsequent GET",
+        "Integration tests exercise all of the above against the local MongoDB from US-002"
+      ],
+      "passes": true,
+      "governingCriteriaRevision": 1,
+      "completionCriteriaRevision": 1,
+      "architectVerified": false,
+      "criterionAmendments": [],
+      "notes": "Verified via automated tests / build gates."
+    },
+    {
+      "id": "US-005",
+      "title": "Core UI: list, create, edit, delete across daily/weekly/yearly",
+      "description": "Build the UI shell with daily/weekly/yearly views (tabs), a Todo card, create form, edit form, and delete confirmation.",
+      "priority": 5,
+      "acceptanceCriteria": [
+        "The app has daily/weekly/yearly view tabs (or routes) that each show only Todos of the matching periodType/targetDate",
+        "A create form requires a non-empty title and a periodType, and calls POST /api/todos on submit",
+        "Each Todo card supports inline or modal edit (title/periodType/status) calling PATCH /api/todos/:id",
+        "Deleting a Todo calls DELETE /api/todos/:id and the item disappears from the list immediately without a full page reload",
+        "`npx tsc --noEmit` passes for the new UI code"
+      ],
+      "passes": true,
+      "governingCriteriaRevision": 1,
+      "completionCriteriaRevision": 1,
+      "architectVerified": false,
+      "criterionAmendments": [],
+      "notes": "Verified via automated tests / build gates."
+    },
+    {
+      "id": "US-006",
+      "title": "Data fetching layer with TanStack Query",
+      "description": "Wrap API calls in TanStack Query hooks (useTodos, useCreateTodo, useUpdateTodo, useDeleteTodo) with cache invalidation, replacing any ad-hoc fetch calls from US-005.",
+      "priority": 6,
+      "acceptanceCriteria": [
+        "hooks/useTodos.ts (or equivalent) provides typed query/mutation hooks used by all UI components from US-005",
+        "Creating, updating, or deleting a Todo invalidates/refetches the relevant list query so the UI reflects the change without manual refresh",
+        "QueryClientProvider is wired at the app root"
+      ],
+      "passes": true,
+      "governingCriteriaRevision": 1,
+      "completionCriteriaRevision": 1,
+      "architectVerified": false,
+      "criterionAmendments": [],
+      "notes": "Verified via automated tests / build gates."
+    },
+    {
+      "id": "US-007",
+      "title": "Drag-and-drop status change with optimistic rollback",
+      "description": "Implement dnd-kit based todo/doing/done columns; dropping a card changes status via optimistic update with rollback on failure, per PRD P0 requirement.",
+      "priority": 7,
+      "acceptanceCriteria": [
+        "Three droppable columns (todo/doing/done) render Todos grouped by status",
+        "Dragging a card into a different column calls PATCH to update status; the UI updates immediately (optimistic) before the network response returns",
+        "On a simulated/mocked API failure, the card visually reverts to its original column (rollback), verified by a test that forces the mutation to reject",
+        "On success, the new status persists after a page refresh"
+      ],
+      "passes": true,
+      "governingCriteriaRevision": 1,
+      "completionCriteriaRevision": 1,
+      "architectVerified": false,
+      "criterionAmendments": [],
+      "notes": "Verified via automated tests / build gates."
+    },
+    {
+      "id": "US-008",
+      "title": "Weekly progress calculation and display",
+      "description": "Compute and display weekly progress = done / total * 100 per plan Phase 5, recalculated automatically on create/delete/status-change.",
+      "priority": 8,
+      "acceptanceCriteria": [
+        "lib/progress.ts exports calcWeeklyProgress(todos) returning an integer percentage",
+        "calcWeeklyProgress returns 0 when the weekly Todo list is empty",
+        "Unit tests cover: 0 todos -> 0%, partial completion -> correct rounded percentage, all done -> 100%",
+        "The weekly view displays the progress value and it updates after creating, deleting, or changing the status of a weekly Todo (verified via UI-level or hook-level test, not just the pure function)"
+      ],
+      "passes": true,
+      "governingCriteriaRevision": 1,
+      "completionCriteriaRevision": 1,
+      "architectVerified": false,
+      "criterionAmendments": [],
+      "notes": "Verified via automated tests / build gates."
+    },
+    {
+      "id": "US-009",
+      "title": "P1: Period linking (yearly -> weekly -> daily) and yearly progress",
+      "description": "Allow a Todo to link to a parent Todo of the next period up, show children under the parent, and compute yearly progress from linked weekly completion.",
+      "priority": 9,
+      "acceptanceCriteria": [
+        "Create/edit form for a daily Todo allows selecting a parent weekly Todo; for a weekly Todo allows selecting a parent yearly Todo",
+        "The parent's detail view lists its linked children",
+        "Deleting a parent Todo clears parentId on its children (no orphaned references) via explicit application-level cleanup",
+        "lib/progress.ts exports calcYearlyProgress(yearlyTodo, linkedWeeklyTodos) using linked weekly completion as the basis, with a unit test"
+      ],
+      "passes": true,
+      "governingCriteriaRevision": 1,
+      "completionCriteriaRevision": 1,
+      "architectVerified": false,
+      "criterionAmendments": [],
+      "notes": "Verified via automated tests / build gates."
+    },
+    {
+      "id": "US-010",
+      "title": "P1: Reorder within column, completion history, filters",
+      "description": "Add same-column drag reordering (persisted order), server-set completedAt on done transition, and status/period/date filters.",
+      "priority": 10,
+      "acceptanceCriteria": [
+        "Dragging to reorder within the same status column persists the new order (order field) and survives a page refresh",
+        "When a Todo transitions to status=done, the server sets completedAt automatically (not client-supplied)",
+        "GET /api/todos supports combined status+periodType+date filters and a UI control exists to apply them",
+        "A completion history view/query shows Todos with completedAt set, filterable by period"
+      ],
+      "passes": true,
+      "governingCriteriaRevision": 1,
+      "completionCriteriaRevision": 1,
+      "architectVerified": false,
+      "criterionAmendments": [],
+      "notes": "Verified via automated tests / build gates."
+    },
+    {
+      "id": "US-011",
+      "title": "Quality gates: build, lint, typecheck, tests all green",
+      "description": "Final regression pass across the whole app.",
+      "priority": 11,
+      "acceptanceCriteria": [
+        "`npm run build` succeeds with no errors",
+        "`npx tsc --noEmit` reports 0 errors",
+        "`npm run lint` reports 0 errors",
+        "`npm run test` (Vitest) passes all suites (period, progress, API integration, DnD rollback)"
+      ],
+      "passes": true,
+      "governingCriteriaRevision": 1,
+      "completionCriteriaRevision": 1,
+      "architectVerified": false,
+      "criterionAmendments": [],
+      "notes": "npm run build, npx tsc --noEmit, npm run lint, and npm run test (26/26) all green as of this pass."
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+enum Status {
+  TODO
+  DOING
+  DONE
+}
+
+enum PeriodType {
+  DAILY
+  WEEKLY
+  YEARLY
+}
+
+model Todo {
+  id          String     @id @default(auto()) @map("_id") @db.ObjectId
+  title       String
+  status      Status     @default(TODO)
+  periodType  PeriodType
+  targetDate  DateTime
+  order       Int        @default(0)
+  parentId    String?    @db.ObjectId
+  parent      Todo?      @relation("TodoHierarchy", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  children    Todo[]     @relation("TodoHierarchy")
+  completedAt DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([periodType, targetDate])
+  @@index([status])
+  @@index([parentId])
+}
