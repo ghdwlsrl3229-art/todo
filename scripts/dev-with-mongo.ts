@@ -1,16 +1,18 @@
 /**
- * Dev entrypoint that boots a local MongoDB (via mongodb-memory-server, no
- * Docker required) as a single-node replica set, writes DATABASE_URL to
- * .env.local, then runs `next dev` as a child process so the mongod
- * lifetime matches the dev server's lifetime.
+ * Dev entrypoint. If .env has MONGODB_URI set (a real MongoDB, e.g. Atlas),
+ * uses that directly. Otherwise boots a local MongoDB (via
+ * mongodb-memory-server, no Docker required) as a single-node replica set.
+ * Either way, writes DATABASE_URL to .env.local, then runs `next dev` as a
+ * child process so any locally-started mongod's lifetime matches the dev
+ * server's lifetime.
  *
- * The dbPath is wiped and recreated on every start (see clearStaleLock/
- * main below) rather than persisted: MongoMemoryReplSet always runs
- * replSetInitiate on startup, and doing that against a dbPath that already
- * has a replica set config from a previous run causes the connection to
- * reset instead of completing. Local dev data therefore does not survive a
- * `npm run dev` restart, which is an acceptable tradeoff for a Docker-free
- * sandboxed dev setup.
+ * When falling back to mongodb-memory-server, the dbPath is wiped and
+ * recreated on every start (see killOrphanedMongod/main below) rather than
+ * persisted: MongoMemoryReplSet always runs replSetInitiate on startup, and
+ * doing that against a dbPath that already has a replica set config from a
+ * previous run causes the connection to reset instead of completing. Local
+ * dev data therefore does not survive a `npm run dev` restart in that mode,
+ * which is an acceptable tradeoff for a Docker-free sandboxed dev setup.
  */
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 import { execFileSync, spawn } from "node:child_process";
@@ -23,6 +25,11 @@ const nextBin = resolve(
   ".bin",
   process.platform === "win32" ? "next.cmd" : "next"
 );
+
+const envFile = resolve(process.cwd(), ".env");
+if (existsSync(envFile)) {
+  process.loadEnvFile(envFile);
+}
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
@@ -88,18 +95,12 @@ async function killOrphanedMongod(dbPath: string) {
   }
 }
 
-async function main() {
+async function startLocalMongo(): Promise<{ uri: string; replSet: MongoMemoryReplSet }> {
   const dbPath = resolve(process.cwd(), ".mongo-data");
   if (existsSync(dbPath)) {
     // Kill any orphaned mongod still holding the previous run's data first,
     // otherwise the wipe below fails with EBUSY on Windows.
     await killOrphanedMongod(dbPath);
-    // MongoMemoryReplSet always runs replSetInitiate on startup. Data left
-    // over from a previous run already has a replica set config on disk,
-    // and re-initiating against that stale config causes the new mongod to
-    // reset the driver's connection instead of completing init. A clean
-    // dbPath every run avoids that entirely; local dev data intentionally
-    // does not persist across `npm run dev` restarts.
     rmSync(dbPath, { recursive: true, force: true });
   }
   mkdirSync(dbPath, { recursive: true });
@@ -110,9 +111,24 @@ async function main() {
   });
 
   const uri = replSet.getUri("tododb");
-  writeFileSync(resolve(process.cwd(), ".env.local"), `DATABASE_URL="${uri}"\n`);
   // eslint-disable-next-line no-console
   console.log(`[dev-with-mongo] local MongoDB replica set ready: ${uri}`);
+  return { uri, replSet };
+}
+
+async function main() {
+  let uri: string;
+  let replSet: MongoMemoryReplSet | undefined;
+
+  if (process.env.MONGODB_URI) {
+    uri = process.env.MONGODB_URI;
+    // eslint-disable-next-line no-console
+    console.log("[dev-with-mongo] using MONGODB_URI from .env (real MongoDB, not local)");
+  } else {
+    ({ uri, replSet } = await startLocalMongo());
+  }
+
+  writeFileSync(resolve(process.cwd(), ".env.local"), `DATABASE_URL="${uri}"\n`);
 
   // `shell: true` is required on Windows to spawn the .cmd shim (spawning
   // it directly throws EINVAL); safe here since the command and args are
@@ -128,7 +144,7 @@ async function main() {
     if (shuttingDown) return;
     shuttingDown = true;
     child.kill();
-    await replSet.stop();
+    await replSet?.stop();
     process.exit(code);
   };
 

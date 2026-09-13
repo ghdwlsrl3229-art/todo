@@ -145,6 +145,7 @@ export function TodoCard({ todo }: { todo: Todo }) {
           {showChildren && (
             <ChildrenPanel
               parentId={todo.id}
+              parentTargetDate={todo.targetDate}
               childPeriodType={childPeriodType}
               showProgress={todo.periodType === "YEARLY"}
             />
