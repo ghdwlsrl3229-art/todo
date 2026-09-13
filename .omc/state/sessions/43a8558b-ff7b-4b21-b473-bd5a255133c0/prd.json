@@ -1,233 +1,142 @@
 {
-  "title": "Todo App (daily/weekly/yearly, DnD status, weekly progress) - Next.js + MongoDB + Prisma + dnd-kit",
-  "sourcePlan": ".omc/plans/todo-app-plan.md",
-  "sourcePrd": "docs/PRD.md",
-  "environmentNotes": "No Docker and no local mongod binary available in this sandbox. Use mongodb-memory-server (downloads its own mongod) configured with a persistent dbPath under .mongo-data/ and started as a single-node replica set, so `npx prisma db push` and Prisma transactions work without Docker/Atlas. This replaces the Docker/Atlas guidance in the plan document for local dev.",
+  "title": "GitHub OAuth login for the Todo app",
+  "sourceDoc": "docs/LOGIN.md",
+  "constraints": [
+    "Do not change existing Todo CRUD business logic (status transitions, completedAt handling, period normalization, parent/child rules, reorder logic) -- only add an ownership/authorization layer around it.",
+    "No hardcoded CLIENT_SECRET anywhere in code -- must come from process.env.GITHUB_CLIENT_SECRET only, no fallback literal.",
+    "Do not report complete while incomplete."
+  ],
+  "designNotes": "Hand-rolled OAuth (Authorization Code flow), not NextAuth, so the exact required routes (/auth/github, /auth/github/callback) match without fighting a library's own routing conventions. DB-backed sessions (Session model, SHA-256-hashed token in DB, raw token in an httpOnly cookie) so logout can truly delete server-side state, not just clear a client cookie. OAuth `state` via a short-lived httpOnly cookie (double-submit pattern), no extra signing secret needed. Callback route calls two isolated functions (exchangeCodeForToken, fetchGithubUser) in lib/github-oauth.ts so tests can fetch-mock GitHub's responses -- same pattern already used throughout this codebase's tests, no real GitHub App needed for automated tests. A real GitHub OAuth App (real CLIENT_ID/CLIENT_SECRET, browser click-through) is required for a full manual end-to-end login test, which the assistant cannot do itself -- this is flagged as a known verification gap, not silently skipped.",
   "stories": [
     {
       "id": "US-001",
-      "title": "Project scaffolding",
-      "description": "Initialize Next.js (App Router, TypeScript) + Tailwind CSS project in the repo root, keeping docs/ and .omc/ intact.",
+      "title": "Data model: User, Session, Todo.userId + migration script",
+      "description": "Add User and Session models to prisma/schema.prisma, make Todo.userId a required field, and provide a migration script for any pre-existing userId-less Todo documents.",
       "priority": 1,
       "acceptanceCriteria": [
-        "package.json exists with Next.js, React, TypeScript, Tailwind CSS as dependencies",
-        "`npm run dev` starts the dev server without errors (verified by build/typecheck, not manual browsing)",
-        "docs/ and .omc/ directories are untouched by scaffolding",
-        "ESLint config present and `npm run lint` runs (may report 0 findings on scaffold)"
+        "prisma/schema.prisma defines a User model (id, githubId unique, username, avatarUrl, createdAt, updatedAt) and a Session model (id, tokenHash unique, userId, expiresAt, createdAt) with a relation from Session to User",
+        "Todo model gets a required `userId String @db.ObjectId` field (no default), plus an index on userId",
+        "`npx prisma db push` succeeds against the local test MongoDB with the new schema",
+        "scripts/migrate-add-user-id.ts exists: given a github username, finds/requires that User exists, and assigns all Todo documents missing userId to that user's id; run and documented in docs/GITHUB_OAUTH_SETUP.md",
+        "lib/session.ts exports createSession(userId) (returns raw token, stores SHA-256 hash + expiresAt in DB), getSessionUser(token) (hash-lookup, expiry check, returns User or null), deleteSession(token) (deletes the DB row); unit/integration tested"
       ],
       "passes": true,
       "governingCriteriaRevision": 1,
       "completionCriteriaRevision": 1,
-      "architectVerified": true,
+      "architectVerified": false,
       "criterionAmendments": [],
-      "notes": "Verified: npm run dev boots (smoke-tested live, curl 200 on / and /api/todos), tsc/lint/build all clean, docs/.omc untouched."
+      "notes": "Verified: schema.prisma User/Session/Todo.userId pushed to Atlas via npx prisma db push (real run, output captured). lib/session.ts has 5 passing tests (valid token, hash-not-raw-token, unknown token, expiry+cleanup, deleteSessionByToken). scripts/migrate-add-user-id.ts refactored to export a testable migrateOrphanedTodosToUser() function; tests/scripts/migrate-add-user-id.test.ts raw-inserts a userId-less Todo (bypassing the now-required schema field) and proves the migration assigns it correctly while leaving already-owned todos untouched (2 tests)."
     },
     {
       "id": "US-002",
-      "title": "MongoDB + Prisma data layer (no Docker)",
-      "description": "Set up Prisma with the mongodb connector and a local dev MongoDB provided by mongodb-memory-server (persistent dbPath, single-node replica set for transaction support). Implement the Todo schema per the plan.",
+      "title": "GitHub OAuth routes (/auth/github, /auth/github/callback)",
+      "description": "Implement the OAuth Authorization Code flow: redirect to GitHub, handle the callback (state verification, code exchange, profile fetch, user upsert, session cookie).",
       "priority": 2,
       "acceptanceCriteria": [
-        "prisma/schema.prisma defines datasource provider=mongodb and the Todo model (id ObjectId, title, status enum, periodType enum, targetDate, order, parentId self-relation, completedAt, createdAt, updatedAt) matching .omc/plans/todo-app-plan.md section 2",
-        "A dev-mongo bootstrap script starts mongodb-memory-server as a replica set and writes DATABASE_URL to .env.local automatically before the app needs the DB, with the dbPath cleared/recreated on every start (data does not persist across `npm run dev` restarts)",
-        "`npx prisma db push` succeeds against the bootstrapped local MongoDB",
-        "lib/prisma.ts exports a singleton PrismaClient safe for Next.js dev hot-reload",
-        "A script or test can create and read back a Todo document via PrismaClient, proving the connection works end-to-end"
+        "GET /auth/github sets a random `oauth_state` httpOnly cookie and redirects (302) to https://github.com/login/oauth/authorize with client_id, redirect_uri, state, and scope=read:user query params",
+        "lib/github-oauth.ts exports exchangeCodeForToken(code) and fetchGithubUser(accessToken) as isolated functions calling GitHub's token and user endpoints respectively, so tests can fetch-mock them",
+        "GET /auth/github/callback rejects (400) if the `state` query param doesn't match the `oauth_state` cookie, or if `code` is missing",
+        "On a valid callback, upserts a User by githubId (creates on first login, updates username/avatarUrl on subsequent logins), creates a Session, sets the session cookie (httpOnly, sameSite=lax), clears the oauth_state cookie, and redirects (302) to /",
+        "CLIENT_SECRET is read only from process.env.GITHUB_CLIENT_SECRET, no literal fallback; missing env var fails loudly at the exchange call, not silently",
+        "Integration tests fetch-mock GitHub's token + user endpoints and exercise: successful login (User+Session created, cookie set), state mismatch (400), missing code (400)"
       ],
       "passes": true,
-      "governingCriteriaRevision": 2,
-      "completionCriteriaRevision": 2,
-      "architectVerified": true,
-      "criterionAmendments": [
-        {
-          "kind": "replaced",
-          "original": "A dev-mongo bootstrap script starts mongodb-memory-server as a replica set with a persistent dbPath and writes DATABASE_URL to .env.local automatically before the app needs the DB (e.g. via a predev/globalSetup script)",
-          "replacement": "A dev-mongo bootstrap script starts mongodb-memory-server as a replica set and writes DATABASE_URL to .env.local automatically before the app needs the DB, with the dbPath cleared/recreated on every start (data does not persist across `npm run dev` restarts)",
-          "reason": "MongoMemoryReplSet always runs replSetInitiate on startup. Live-tested a persistent dbPath across three consecutive `npm run dev` restarts: it reliably reproduced 'DBPathInUse' (stale lock from an ungracefully-killed previous run) and then, after clearing the lock, a MongoNetworkError/connection-reset during replSetInitiate because the dbPath already carried a replica set config from the prior run. A clean dbPath every run eliminated both failures on retest.",
-          "evidence": "scripts/dev-with-mongo.ts iterations: attempt 2 failed with DBPathInUse (mongod.lock held by orphaned pid 41372, confirmed via `tasklist`/`Get-Process`); attempts 3-4 (after killing the orphan) failed with 'MongoNetworkError: connection 1 to 127.0.0.1:PORT closed'; attempt 5 (dbPath wiped+recreated on every start) succeeded, verified live via curl 200 on / and /api/todos and a working POST.",
-          "authority": "ses_43a8558b-ff7b-4b21-b473-bd5a255133c0",
-          "timestamp": "2026-09-13T12:00:00.000Z"
-        }
-      ],
-      "notes": "Verified live (not just via tests): npm run dev boots a real mongodb-memory-server replica set, prisma db push succeeds (also exercised by the Vitest globalSetup on every test run), and curl against a running dev server round-trips through PrismaClient. Also hardened dev-with-mongo.ts to auto-clear an orphaned mongod process (matched by exact pid recorded in mongod.lock) left over from an ungraceful previous shutdown."
+      "governingCriteriaRevision": 1,
+      "completionCriteriaRevision": 1,
+      "architectVerified": false,
+      "criterionAmendments": [],
+      "notes": "Verified: tests/api/auth.test.ts (7 tests) covers missing code->400, state mismatch->400, no state cookie->400, successful login (fetch-mocked GitHub token+user endpoints) creating User+Session+cookie and that the new cookie actually authenticates a follow-up /api/todos call, and second-login-same-githubId updates rather than duplicates. Live-verified against a REAL registered GitHub OAuth App (real GITHUB_CLIENT_ID/SECRET appeared in .env): GET /auth/github redirects to a correctly-formed https://github.com/login/oauth/authorize URL with the real client_id, dynamic redirect_uri matching the actual running port, random state, scope=read:user, and sets a matching httpOnly oauth_state cookie."
     },
     {
       "id": "US-003",
-      "title": "Period normalization utilities",
-      "description": "Pure functions to normalize targetDate per periodType (daily/weekly/yearly) per plan section 2 design notes.",
+      "title": "Logout",
+      "description": "Fully delete server-side session state on logout, not just the cookie.",
       "priority": 3,
       "acceptanceCriteria": [
-        "lib/period.ts exports normalizeDailyDate(date), normalizeWeekStart(date) (ISO Monday), normalizeYearStart(date)",
-        "Unit tests cover: mid-week date normalizes to that week's Monday, a Monday normalizes to itself, year-end/year-start boundary dates normalize correctly, a date in December near a week that spans into January normalizes to the correct ISO week",
-        "`npm run test` passes for lib/period.test.ts"
+        "POST /auth/logout deletes the matching Session row from the DB (looked up by the cookie's token hash) and clears the session cookie",
+        "After logout, a request with the old cookie value is treated as unauthenticated (401 on API routes)",
+        "Tested: log in (create session) -> logout -> subsequent API call with the old cookie returns 401"
       ],
       "passes": true,
       "governingCriteriaRevision": 1,
       "completionCriteriaRevision": 1,
-      "architectVerified": true,
+      "architectVerified": false,
       "criterionAmendments": [],
-      "notes": "Verified via automated tests / build gates."
+      "notes": "Verified: tests/api/auth.test.ts logout test creates a session, confirms it authenticates, logs out, confirms the Session row is gone from the DB and the same old cookie now gets 401."
     },
     {
       "id": "US-004",
-      "title": "Todo CRUD API routes with validation",
-      "description": "Implement REST API routes for Todo CRUD with zod validation per plan Phase 2 and PRD P0/P1-14.",
+      "title": "Route protection: unauthenticated users cannot reach the todo list",
+      "description": "Gate the main page behind a session check; provide a login page.",
       "priority": 4,
       "acceptanceCriteria": [
-        "POST /api/todos creates a Todo with status=todo by default; returns 201 and the created record; rejects empty/whitespace-only title with 400",
-        "POST /api/todos rejects invalid periodType or status values with 400",
-        "GET /api/todos supports filtering by periodType, status, and targetDate (period-aware, using lib/period.ts normalization) and returns only matching records",
-        "PATCH /api/todos/:id updates title/periodType/status and bumps updatedAt; returns 200 with updated record; returns 404 for unknown id",
-        "DELETE /api/todos/:id returns 204 and the record is no longer returned by subsequent GET",
-        "Integration tests exercise all of the above against the local MongoDB from US-002"
+        "app/login/page.tsx renders a \"GitHub로 로그인\" button/link to /auth/github",
+        "app/page.tsx (server component) checks the session cookie via lib/session.ts; unauthenticated requests are redirected to /login (not just shown an error)",
+        "Authenticated requests render the existing TodoApp UI, now also showing the logged-in user's github username/avatar and a logout control",
+        "This does not alter TodoApp's or any child component's existing CRUD behavior -- only adds the session gate at the page level and a user/logout header"
       ],
       "passes": true,
       "governingCriteriaRevision": 1,
       "completionCriteriaRevision": 1,
-      "architectVerified": true,
+      "architectVerified": false,
       "criterionAmendments": [],
-      "notes": "Post-architect-review fix (round 1): params.id and query parentId are now regex-validated as ObjectIds (404/400) before any db call, and reorder/[id] routes catch P2025, so a malformed id returns 404/400 instead of crashing with a 500 (previously only well-formed-but-unknown ids were tested, which could not catch this). POST/PATCH also 400 on a well-formed but nonexistent parentId. 10 new tests added; live-smoke-tested via curl. Post-review fix (round 2): createTodoSchema.parentId was .optional() without .nullable(), so CreateTodoForm's `parentId: parentId || null` payload was rejected by its own schema on every submit with no parent chosen -- meaning no todo could be created from the UI at all unless a parent was explicitly picked, and YEARLY todos (no parent picker) could never be created. Fixed to .nullable().optional(), matching updateTodoSchema; route.ts POST changed `!== undefined` to `!= null` accordingly. Live-smoke-tested both the null-parentId and YEARLY-no-parent-field cases via curl (201 both)."
+      "notes": "Verified: app/login/page.tsx renders the GitHub login link. app/page.tsx redirects unauthenticated requests to /login (live-verified via curl: 307 to /login) and unauthenticated /api/todos returns 401 (live-verified). UserHeader added without touching TodoApp/TodoBoard/TodoCard CRUD logic."
     },
     {
       "id": "US-005",
-      "title": "Core UI: list, create, edit, delete across daily/weekly/yearly",
-      "description": "Build the UI shell with daily/weekly/yearly views (tabs), a Todo card, create form, edit form, and delete confirmation.",
+      "title": "API authorization: 401 when unauthenticated, ownership scoping when authenticated",
+      "description": "Every /api/todos* route requires a valid session and scopes all reads/writes to the session user's own todos, without changing the existing CRUD/validation logic itself.",
       "priority": 5,
       "acceptanceCriteria": [
-        "The app has daily/weekly/yearly view tabs (or routes) that each show only Todos of the matching periodType/targetDate",
-        "A create form requires a non-empty title and a periodType, and calls POST /api/todos on submit",
-        "Each Todo card supports inline or modal edit (title/periodType/status) calling PATCH /api/todos/:id",
-        "Deleting a Todo calls DELETE /api/todos/:id and the item disappears from the list immediately without a full page reload",
-        "`npx tsc --noEmit` passes for the new UI code"
+        "GET/POST /api/todos, PATCH/DELETE /api/todos/:id, and PATCH /api/todos/reorder all return 401 if there is no valid session (no cookie, or cookie doesn't match any non-expired Session)",
+        "GET /api/todos only returns todos owned by the session user (userId filter merged into the existing where-clause logic, not replacing it)",
+        "POST /api/todos sets userId from the session, not from the request body (a client-supplied userId in the body is ignored)",
+        "PATCH/DELETE /api/todos/:id on a todo owned by a different user returns 404 (not 403, to avoid confirming existence) -- existing todo-not-found and malformed-id handling from the prior implementation is unchanged",
+        "PATCH /api/todos/reorder rejects (404) if any id in orderedIds is not owned by the session user",
+        "All existing (pre-auth) CRUD/validation tests still pass, updated only to authenticate as a test user first -- proving the underlying business logic was not altered",
+        "New tests cover: 401 without a session, cross-user 404 on PATCH/DELETE/reorder, GET only returning the caller's own todos"
       ],
       "passes": true,
       "governingCriteriaRevision": 1,
       "completionCriteriaRevision": 1,
-      "architectVerified": true,
+      "architectVerified": false,
       "criterionAmendments": [],
-      "notes": "Post-architect-review fix: TodoCard's inline edit previously covered title only, missing the P0 periodType edit requirement (docs/PRD.md:78-82). Added a periodType <select> alongside the title input in the edit affordance, wired to the same useUpdateTodo mutation; verified live via curl PATCH periodType and confirmed targetDate re-normalizes under the new period."
+      "notes": "Verified via 29 tests in tests/api/todos.test.ts (401 on every route without a session, GET only returns the caller own todos, POST ignores a client-supplied userId, cross-user 404 on PATCH/DELETE/reorder, cross-user parent-link rejected with 400) plus the pre-existing CRUD/validation tests updated only to authenticate first -- all passing unchanged, proving the underlying business logic was not altered."
     },
     {
       "id": "US-006",
-      "title": "Data fetching layer with TanStack Query",
-      "description": "Wrap API calls in TanStack Query hooks (useTodos, useCreateTodo, useUpdateTodo, useDeleteTodo) with cache invalidation, replacing any ad-hoc fetch calls from US-005.",
+      "title": "Setup guide + .env.example",
+      "description": "Document how to register a GitHub OAuth App and configure the environment, and how to run the userId migration.",
       "priority": 6,
       "acceptanceCriteria": [
-        "hooks/useTodos.ts (or equivalent) provides typed query/mutation hooks used by all UI components from US-005",
-        "Creating, updating, or deleting a Todo invalidates/refetches the relevant list query so the UI reflects the change without manual refresh",
-        "QueryClientProvider is wired at the app root"
+        ".env.example exists at the repo root listing GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET (with a comment that it must never be committed with a real value), and the existing DATABASE_URL/MONGODB_URI pattern, consistent with the current .env usage",
+        "docs/GITHUB_OAUTH_SETUP.md walks through: creating a GitHub OAuth App (Settings > Developer settings > OAuth Apps), setting the Authorization callback URL to match /auth/github/callback, filling in .env, and running the scripts/migrate-add-user-id.ts migration",
+        "No real secret values appear anywhere in the committed docs or .env.example"
       ],
       "passes": true,
       "governingCriteriaRevision": 1,
       "completionCriteriaRevision": 1,
-      "architectVerified": true,
+      "architectVerified": false,
       "criterionAmendments": [],
-      "notes": "Verified via automated tests / build gates."
+      "notes": ".env.example and docs/GITHUB_OAUTH_SETUP.md written; no real secret values in either. Setup guide explicitly tells the user to match the callback URL to whatever port npm run dev actually lands on (ports vary here since 3000+ are often occupied on this machine), since GitHub OAuth requires an exact match."
     },
     {
       "id": "US-007",
-      "title": "Drag-and-drop status change with optimistic rollback",
-      "description": "Implement dnd-kit based todo/doing/done columns; dropping a card changes status via optimistic update with rollback on failure, per PRD P0 requirement.",
+      "title": "Quality gates + regression",
+      "description": "Full build/lint/typecheck/test pass, including all pre-existing tests updated to authenticate, proving no CRUD regressions.",
       "priority": 7,
       "acceptanceCriteria": [
-        "Three droppable columns (todo/doing/done) render Todos grouped by status",
-        "Dragging a card into a different column calls PATCH to update status; the UI updates immediately (optimistic) before the network response returns",
-        "On a simulated/mocked API failure, the card visually reverts to its original column (rollback), verified by a test that forces the mutation to reject",
-        "On success, the new status persists after a page refresh"
-      ],
-      "passes": true,
-      "governingCriteriaRevision": 1,
-      "completionCriteriaRevision": 1,
-      "architectVerified": true,
-      "criterionAmendments": [],
-      "notes": "Verified via automated tests / build gates. Post-architect-review fix (code quality, not an AC): cross-column drops previously kept whatever `order` the card already had, which could jump it to the top of the destination column; TodoBoard.tsx now computes end-of-column order on cross-column drop."
-    },
-    {
-      "id": "US-008",
-      "title": "Weekly progress calculation and display",
-      "description": "Compute and display weekly progress = done / total * 100 per plan Phase 5, recalculated automatically on create/delete/status-change.",
-      "priority": 8,
-      "acceptanceCriteria": [
-        "lib/progress.ts exports calcWeeklyProgress(todos) returning an integer percentage",
-        "calcWeeklyProgress returns 0 when the weekly Todo list is empty",
-        "Unit tests cover: 0 todos -> 0%, partial completion -> correct rounded percentage, all done -> 100%",
-        "The weekly view displays the progress value and it updates after creating, deleting, or changing the status of a weekly Todo (verified via UI-level or hook-level test, not just the pure function)"
-      ],
-      "passes": true,
-      "governingCriteriaRevision": 1,
-      "completionCriteriaRevision": 1,
-      "architectVerified": true,
-      "criterionAmendments": [],
-      "notes": "Verified via automated tests / build gates."
-    },
-    {
-      "id": "US-009",
-      "title": "P1: Period linking (yearly -> weekly -> daily) and yearly progress",
-      "description": "Allow a Todo to link to a parent Todo of the next period up, show children under the parent, and compute yearly progress from linked weekly completion.",
-      "priority": 9,
-      "acceptanceCriteria": [
-        "Create/edit form for a daily Todo allows selecting a parent weekly Todo; for a weekly Todo allows selecting a parent yearly Todo",
-        "The parent's detail view lists its linked children",
-        "Deleting a parent Todo clears parentId on its children (no orphaned references) via explicit application-level cleanup",
-        "lib/progress.ts exports calcYearlyProgress(linkedWeeklyTodos) using linked weekly completion as the basis, with a unit test"
-      ],
-      "passes": true,
-      "governingCriteriaRevision": 2,
-      "completionCriteriaRevision": 2,
-      "architectVerified": true,
-      "criterionAmendments": [
-        {
-          "kind": "replaced",
-          "original": "lib/progress.ts exports calcYearlyProgress(yearlyTodo, linkedWeeklyTodos) using linked weekly completion as the basis, with a unit test",
-          "replacement": "lib/progress.ts exports calcYearlyProgress(linkedWeeklyTodos) using linked weekly completion as the basis, with a unit test",
-          "reason": "The yearly todo's own status field is irrelevant to the calculation (progress is defined purely by completion of its linked weekly children, per PRD docs/PRD.md:171-172: '연결된 주간 목표 완료 기준으로 자동 계산'). Carrying an unused `yearlyTodo` parameter forever would misrepresent the function's actual dependencies and was flagged by architect review as a code-quality issue independent of this amendment.",
-          "evidence": "Architect review (2026-09-13, this session) inspected lib/progress.ts:18 and confirmed the single-arg implementation is a correct, tested alias of calcWeeklyProgress and is what ChildrenPanel.tsx:33 actually calls; flagged the unamended prd.json/code mismatch as a blocker while agreeing the single-arg design is not a defect in itself.",
-          "authority": "ses_43a8558b-ff7b-4b21-b473-bd5a255133c0",
-          "timestamp": "2026-09-13T12:15:00.000Z"
-        }
-      ],
-      "notes": "Verified via automated tests / build gates. Amendment filed after architect review flagged the prd.json/code signature mismatch (previously passes:true with an empty criterionAmendments ledger, which the review correctly rejected). Round-2 review finding: the periodType-edit UI added for US-005 opened a new UI-reachable path to orphan a child (edit periodType on a parented todo without unlinking first, which would silently point parentId at a now-wrong-level parent and drop the child from its parent's ChildrenPanel/yearly-progress basis). Fixed in [id]/route.ts PATCH: changing periodType while parentId (existing or newly-set in the same request) is non-null now returns 400 instead of silently corrupting the link; also rejects a todo being set as its own parent. Both covered by new tests in tests/api/todos.test.ts."
-    },
-    {
-      "id": "US-010",
-      "title": "P1: Reorder within column, completion history, filters",
-      "description": "Add same-column drag reordering (persisted order), server-set completedAt on done transition, and status/period/date filters.",
-      "priority": 10,
-      "acceptanceCriteria": [
-        "Dragging to reorder within the same status column persists the new order (order field) and survives a page refresh",
-        "When a Todo transitions to status=done, the server sets completedAt automatically (not client-supplied)",
-        "GET /api/todos supports combined status+periodType+date filters and a UI control exists to apply them",
-        "A completion history view/query shows Todos with completedAt set, filterable by period"
-      ],
-      "passes": true,
-      "governingCriteriaRevision": 1,
-      "completionCriteriaRevision": 1,
-      "architectVerified": true,
-      "criterionAmendments": [],
-      "notes": "Verified via automated tests / build gates. Post-architect-review fix: reorder/route.ts no longer writes `status` (was redundant for its only caller and could set DONE without completedAt, bypassing the invariant [id]/route.ts enforces); test added confirming a reorder call cannot change status/completedAt."
-    },
-    {
-      "id": "US-011",
-      "title": "Quality gates: build, lint, typecheck, tests all green",
-      "description": "Final regression pass across the whole app.",
-      "priority": 11,
-      "acceptanceCriteria": [
-        "`npm run build` succeeds with no errors",
+        "`npm run build` succeeds",
         "`npx tsc --noEmit` reports 0 errors",
         "`npm run lint` reports 0 errors",
-        "`npm run test` (Vitest) passes all suites (period, progress, API integration, DnD rollback)"
+        "`npm run test` passes, including every pre-existing test file (now authenticated) plus all new auth tests"
       ],
       "passes": true,
       "governingCriteriaRevision": 1,
       "completionCriteriaRevision": 1,
-      "architectVerified": true,
+      "architectVerified": false,
       "criterionAmendments": [],
-      "notes": "npm run build, npx tsc --noEmit, npm run lint, and npm run test (40/40) all green as of this pass (post-architect-review round 2 fixes; also fixed a test-infra gap where RTL wasn't cleaning up between tests since Vitest globals aren't enabled)."
+      "notes": "npm run build, npx tsc --noEmit, npm run lint all clean. npm run test: 62/62 passing across 9 files (up from 40 pre-auth), including every pre-existing test now authenticated."
     }
-  ],
-  "architectApproval": {
-    "verdict": "APPROVED",
-    "round": 3,
-    "timestamp": "2026-09-13T12:42:27.830Z"
-  }
+  ]
 }

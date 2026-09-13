@@ -2,8 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { reorderSchema } from "@/lib/validation";
+import { getUserFromRequest } from "@/lib/session";
 
 export async function PATCH(request: NextRequest) {
+  const user = await getUserFromRequest(request);
+  if (!user) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
   const body = await request.json().catch(() => null);
   const parsed = reorderSchema.safeParse(body);
   if (!parsed.success) {
@@ -23,7 +29,7 @@ export async function PATCH(request: NextRequest) {
     await prisma.$transaction(
       orderedIds.map((id, index) =>
         prisma.todo.update({
-          where: { id },
+          where: { id, userId: user.id },
           data: { order: index },
         })
       )

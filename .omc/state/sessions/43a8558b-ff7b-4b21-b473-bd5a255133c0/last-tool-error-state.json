@@ -1,7 +1,7 @@
 {
-  "tool_name": "mcp__plugin_oh-my-claudecode_t__state_clear",
-  "tool_input_preview": "{\"mode\":\"ralph\",\"session_id\":\"43a8558b-ff7b-4b21-b473-bd5a255133c0\",\"workingDirectory\":\"C:\\\\Users\\\\HJK\\\\Desktop\\\\claude-practice\\\\todo\"}",
-  "error": "Error clearing state for ralph: state mutation lock unavailable for cancel signal: C:\\Users\\HJK\\Desktop\\claude-practice\\todo\\.omc\\state\\sessions\\43a8558b-ff7b-4b21-b473-bd5a255133c0\\cancel-signal-state.json",
-  "timestamp": "2026-09-13T12:44:20.902Z",
-  "retry_count": 3
+  "tool_name": "PowerShell",
+  "tool_input_preview": "{\"command\":\"$conn = Get-NetTCPConnection -LocalPort 4173 -State Listen -ErrorAction SilentlyContinue\\nif ($conn) { Stop-Process -Id $conn.OwningProcess -Force -ErrorAction SilentlyContinue }\\nStart-Sl...",
+  "error": "Exit code 1",
+  "timestamp": "2026-09-13T14:45:17.217Z",
+  "retry_count": 1
 }

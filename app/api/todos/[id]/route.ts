@@ -3,11 +3,17 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { isValidObjectId, updateTodoSchema } from "@/lib/validation";
 import { normalizeForPeriod } from "@/lib/period";
+import { getUserFromRequest } from "@/lib/session";
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const user = await getUserFromRequest(request);
+  if (!user) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
   if (!isValidObjectId(params.id)) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
@@ -21,7 +27,7 @@ export async function PATCH(
     );
   }
 
-  const existing = await prisma.todo.findUnique({ where: { id: params.id } });
+  const existing = await prisma.todo.findUnique({ where: { id: params.id, userId: user.id } });
   if (!existing) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
@@ -32,7 +38,7 @@ export async function PATCH(
     if (parentId === params.id) {
       return NextResponse.json({ error: "a todo cannot be its own parent" }, { status: 400 });
     }
-    const parentExists = await prisma.todo.findUnique({ where: { id: parentId } });
+    const parentExists = await prisma.todo.findUnique({ where: { id: parentId, userId: user.id } });
     if (!parentExists) {
       return NextResponse.json({ error: "parent not found" }, { status: 400 });
     }
@@ -80,7 +86,7 @@ export async function PATCH(
 
   try {
     const updated = await prisma.todo.update({
-      where: { id: params.id },
+      where: { id: params.id, userId: user.id },
       data,
     });
     return NextResponse.json(updated);
@@ -93,24 +99,29 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const user = await getUserFromRequest(request);
+  if (!user) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
   if (!isValidObjectId(params.id)) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
 
-  const existing = await prisma.todo.findUnique({ where: { id: params.id } });
+  const existing = await prisma.todo.findUnique({ where: { id: params.id, userId: user.id } });
   if (!existing) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
 
   await prisma.$transaction([
     prisma.todo.updateMany({
-      where: { parentId: params.id },
+      where: { parentId: params.id, userId: user.id },
       data: { parentId: null },
     }),
-    prisma.todo.delete({ where: { id: params.id } }),
+    prisma.todo.delete({ where: { id: params.id, userId: user.id } }),
   ]);
 
   return new NextResponse(null, { status: 204 });

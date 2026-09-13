@@ -11,14 +11,22 @@ import { GET, POST } from "@/app/api/todos/route";
 import { DELETE, PATCH } from "@/app/api/todos/[id]/route";
 import { PATCH as REORDER } from "@/app/api/todos/reorder/route";
 
-export function stubFetchToRouteHandlers() {
+/**
+ * @param authCookie A `Cookie` header value (e.g. from tests/helpers/auth's
+ * authCookieFor) to attach to every request, simulating the browser
+ * automatically sending the session cookie on same-origin requests. Omit to
+ * simulate an unauthenticated browser.
+ */
+export function stubFetchToRouteHandlers(authCookie?: string) {
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const rawUrl = typeof input === "string" ? input : (input as Request).url;
       const url = new URL(rawUrl, "http://localhost");
       const method = (init?.method ?? "GET").toUpperCase();
-      const nextReq = new NextRequest(new Request(url.toString(), init));
+      const headers = new Headers(init?.headers);
+      if (authCookie) headers.set("Cookie", authCookie);
+      const nextReq = new NextRequest(new Request(url.toString(), { ...init, headers }));
 
       if (url.pathname === "/api/todos" && method === "GET") return GET(nextReq);
       if (url.pathname === "/api/todos" && method === "POST") return POST(nextReq);

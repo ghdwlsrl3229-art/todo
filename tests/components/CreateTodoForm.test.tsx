@@ -13,12 +13,15 @@ import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { prisma } from "@/lib/prisma";
 import { CreateTodoForm } from "@/components/CreateTodoForm";
 import { renderWithQueryClient as renderWithClient, stubFetchToRouteHandlers } from "../helpers/test-utils";
-
-stubFetchToRouteHandlers();
+import { authCookieFor, createTestUser } from "../helpers/auth";
 
 describe("CreateTodoForm (component, against real route handlers)", () => {
   beforeEach(async () => {
     await prisma.todo.deleteMany({});
+    await prisma.session.deleteMany({});
+    await prisma.user.deleteMany({});
+    const user = await createTestUser();
+    stubFetchToRouteHandlers(await authCookieFor(user.id));
   });
 
   it("creates a todo with no parent selected (DAILY, has a parent picker)", async () => {

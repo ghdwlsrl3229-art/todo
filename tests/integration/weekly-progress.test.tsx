@@ -11,8 +11,7 @@ import { calcWeeklyProgress } from "@/lib/progress";
 import { prisma } from "@/lib/prisma";
 import type { TodosFilter } from "@/lib/types";
 import { renderWithQueryClient, stubFetchToRouteHandlers } from "../helpers/test-utils";
-
-stubFetchToRouteHandlers();
+import { authCookieFor, createTestUser } from "../helpers/auth";
 
 const filter: TodosFilter = { periodType: "WEEKLY", targetDate: "2026-09-14" };
 
@@ -44,6 +43,10 @@ function Harness() {
 describe("weekly progress recalculation (integration)", () => {
   beforeEach(async () => {
     await prisma.todo.deleteMany({});
+    await prisma.session.deleteMany({});
+    await prisma.user.deleteMany({});
+    const user = await createTestUser();
+    stubFetchToRouteHandlers(await authCookieFor(user.id));
   });
 
   it("starts at 0% with no todos, then updates as todos are created and completed", async () => {
