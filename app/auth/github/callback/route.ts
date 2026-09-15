@@ -26,13 +26,24 @@ export async function GET(request: NextRequest) {
   }
 
   const githubId = String(githubUser.id);
-  const user = await prisma.user.upsert({
-    where: { githubId },
-    create: { githubId, username: githubUser.login, avatarUrl: githubUser.avatar_url },
-    update: { username: githubUser.login, avatarUrl: githubUser.avatar_url },
-  });
-
-  const { token, expiresAt } = await createSession(user.id);
+  let token: string;
+  let expiresAt: Date;
+  try {
+    const user = await prisma.user.upsert({
+      where: { githubId },
+      create: { githubId, username: githubUser.login, avatarUrl: githubUser.avatar_url },
+      update: { username: githubUser.login, avatarUrl: githubUser.avatar_url },
+    });
+    ({ token, expiresAt } = await createSession(user.id));
+  } catch (err) {
+    // Most commonly a misconfigured/missing DATABASE_URL in this
+    // environment (e.g. a deploy target that doesn't derive it the way
+    // local dev does). Logged server-side for diagnosis; the client only
+    // gets a generic message, no internals.
+    // eslint-disable-next-line no-console
+    console.error("[auth/github/callback] failed to persist user/session:", err);
+    return NextResponse.json({ error: "login failed while saving the session" }, { status: 500 });
+  }
 
   const response = NextResponse.redirect(new URL("/", request.nextUrl.origin), { status: 302 });
   response.cookies.set(SESSION_COOKIE_NAME, token, {
