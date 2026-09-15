@@ -23,13 +23,13 @@ export function HistoryPanel() {
   });
 
   return (
-    <div className="mt-8 rounded-lg border border-slate-200 p-4">
-      <h2 className="mb-3 text-sm font-semibold text-slate-700">완료 이력</h2>
+    <div className="mt-8 rounded-md border border-hairline bg-white p-4">
+      <h2 className="mb-3 text-[16px] font-semibold leading-[1.25] text-ink">완료 이력</h2>
       <div className="mb-3 flex flex-wrap gap-2">
         <select
           value={periodType}
           onChange={(e) => setPeriodType(e.target.value as PeriodType)}
-          className="rounded-md border border-slate-300 px-2 py-1 text-sm"
+          className="rounded-sm border border-hairline px-2 py-1.5 text-[14px] text-ink focus:border-2 focus:border-ink focus:outline-none"
         >
           {PERIOD_TYPES.map((p) => (
             <option key={p} value={p}>
@@ -41,18 +41,18 @@ export function HistoryPanel() {
           type="date"
           value={date}
           onChange={(e) => setDate(e.target.value)}
-          className="rounded-md border border-slate-300 px-2 py-1 text-sm"
+          className="rounded-sm border border-hairline px-2 py-1.5 text-[14px] text-ink focus:border-2 focus:border-ink focus:outline-none"
         />
       </div>
-      {isLoading && <p className="text-sm text-slate-400">불러오는 중...</p>}
+      {isLoading && <p className="text-[14px] text-muted-soft">불러오는 중...</p>}
       {!isLoading && sorted.length === 0 && (
-        <p className="text-sm text-slate-400">완료된 항목이 없습니다.</p>
+        <p className="text-[14px] text-muted-soft">완료된 항목이 없습니다.</p>
       )}
-      <ul className="space-y-1">
+      <ul className="divide-y divide-hairline-soft">
         {sorted.map((t) => (
-          <li key={t.id} className="flex items-center justify-between text-sm">
+          <li key={t.id} className="flex items-center justify-between py-2 text-[14px] leading-[1.43] text-body">
             <span>{t.title}</span>
-            <span className="text-xs text-slate-400">
+            <span className="text-[13px] leading-[1.23] text-muted-soft">
               {t.completedAt ? new Date(t.completedAt).toLocaleString() : "-"}
             </span>
           </li>

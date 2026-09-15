@@ -55,13 +55,13 @@ export function CreateTodoForm({
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         placeholder="할 일 제목"
-        className="min-w-[200px] flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
+        className="h-12 min-w-[200px] flex-1 rounded-sm border border-hairline bg-white px-4 text-[16px] leading-[1.5] text-ink placeholder:text-muted-soft focus:border-2 focus:border-ink focus:outline-none"
       />
       {parentPeriodType && (
         <select
           value={parentId}
           onChange={(e) => setParentId(e.target.value)}
-          className="rounded-md border border-slate-300 px-2 py-2 text-sm"
+          className="h-12 rounded-sm border border-hairline bg-white px-3 text-[14px] text-ink focus:border-2 focus:border-ink focus:outline-none"
         >
           <option value="">상위 목표 없음</option>
           {parentOptions?.map((p) => (
@@ -74,12 +74,12 @@ export function CreateTodoForm({
       <button
         type="submit"
         disabled={createTodo.isPending || !title.trim()}
-        className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+        className="h-12 rounded-md bg-primary px-6 text-[16px] font-medium leading-[1.25] text-white transition-colors hover:bg-primary-active disabled:bg-primary-disabled"
       >
         추가
       </button>
       {createTodo.isError && (
-        <p className="w-full text-sm text-red-600">
+        <p className="w-full text-[14px] text-error">
           {(createTodo.error as Error).message}
         </p>
       )}

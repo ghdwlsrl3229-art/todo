@@ -16,29 +16,29 @@ export function PeriodTabs({
 }) {
   return (
     <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-      <div className="flex gap-1 rounded-lg bg-slate-200 p-1">
+      <div className="flex gap-1 rounded-full bg-surface-soft p-1">
         {PERIOD_TYPES.map((value) => (
           <button
             key={value}
             type="button"
             onClick={() => onChange(value)}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
+            className={`rounded-full px-4 py-1.5 text-[14px] font-medium leading-[1.29] transition ${
               active === value
-                ? "bg-white text-slate-900 shadow"
-                : "text-slate-600 hover:text-slate-900"
+                ? "bg-white text-ink shadow-elevated"
+                : "text-muted hover:text-ink"
             }`}
           >
             {PERIOD_LABELS[value]}
           </button>
         ))}
       </div>
-      <label className="flex items-center gap-2 text-sm text-slate-600">
+      <label className="flex items-center gap-2 text-[14px] leading-[1.43] text-muted">
         기준일
         <input
           type="date"
           value={referenceDate}
           onChange={(e) => onReferenceDateChange(e.target.value)}
-          className="rounded-md border border-slate-300 px-2 py-1 text-sm"
+          className="rounded-sm border border-hairline px-2 py-1.5 text-[14px] text-ink focus:border-2 focus:border-ink focus:outline-none"
         />
       </label>
     </div>

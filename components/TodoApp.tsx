@@ -33,9 +33,9 @@ export function TodoApp() {
         <ProgressBar percent={calcWeeklyProgress(todos)} label="주간 진행률" />
       )}
 
-      {isLoading && <p className="text-sm text-slate-400">불러오는 중...</p>}
+      {isLoading && <p className="text-[14px] text-muted-soft">불러오는 중...</p>}
       {isError && (
-        <p className="text-sm text-red-600">
+        <p className="text-[14px] text-error">
           {(error as Error)?.message ?? "목록을 불러오지 못했습니다."}
         </p>
       )}

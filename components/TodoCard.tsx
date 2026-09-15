@@ -61,7 +61,7 @@ export function TodoCard({ todo }: { todo: Todo }) {
     <div
       ref={setNodeRef}
       style={style}
-      className="rounded-md border border-slate-200 bg-white p-3 shadow-sm"
+      className="rounded-md border border-hairline bg-white p-3 transition-shadow hover:shadow-elevated"
     >
       <div className="flex items-start justify-between gap-2">
         <div
@@ -77,13 +77,13 @@ export function TodoCard({ todo }: { todo: Todo }) {
                 onChange={(e) => setTitle(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && saveEdits()}
                 onPointerDown={(e) => e.stopPropagation()}
-                className="min-w-0 flex-1 rounded border border-slate-300 px-1 py-0.5 text-sm"
+                className="min-w-0 flex-1 rounded-sm border border-hairline px-1.5 py-1 text-[14px] text-ink focus:border-2 focus:border-ink focus:outline-none"
               />
               <select
                 value={periodType}
                 onChange={(e) => setPeriodType(e.target.value as PeriodType)}
                 onPointerDown={(e) => e.stopPropagation()}
-                className="rounded border border-slate-300 px-1 py-0.5 text-xs"
+                className="rounded-sm border border-hairline px-1.5 py-1 text-[13px] text-ink"
               >
                 {PERIOD_TYPES.map((p) => (
                   <option key={p} value={p}>
@@ -95,12 +95,12 @@ export function TodoCard({ todo }: { todo: Todo }) {
                 type="button"
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={saveEdits}
-                className="rounded bg-slate-800 px-2 py-0.5 text-xs text-white"
+                className="rounded-md bg-primary px-3 py-1 text-[13px] font-medium text-white hover:bg-primary-active"
               >
                 저장
               </button>
               {updateTodo.isError && (
-                <p className="w-full text-xs text-red-600">{(updateTodo.error as Error).message}</p>
+                <p className="w-full text-[13px] text-error">{(updateTodo.error as Error).message}</p>
               )}
             </div>
           ) : (
@@ -110,13 +110,16 @@ export function TodoCard({ todo }: { todo: Todo }) {
                 setPeriodType(todo.periodType);
                 setEditing(true);
               }}
-              className="text-sm font-medium text-slate-800"
+              className="flex flex-wrap items-center gap-1.5 text-[16px] font-medium leading-[1.5] text-ink"
             >
-              {todo.title} <span className="text-xs text-slate-400">({PERIOD_LABELS[todo.periodType]})</span>
+              {todo.title}
+              <span className="rounded-full bg-surface-strong px-2 py-0.5 text-[11px] font-semibold leading-[1.18] text-muted">
+                {PERIOD_LABELS[todo.periodType]}
+              </span>
             </p>
           )}
           {todo.completedAt && (
-            <p className="mt-1 text-[11px] text-slate-400">
+            <p className="mt-1 text-[13px] leading-[1.23] text-muted-soft">
               완료: {new Date(todo.completedAt).toLocaleString()}
             </p>
           )}
@@ -125,7 +128,7 @@ export function TodoCard({ todo }: { todo: Todo }) {
           type="button"
           onPointerDown={(e) => e.stopPropagation()}
           onClick={() => deleteTodo.mutate(todo.id)}
-          className="text-xs text-slate-400 hover:text-red-600"
+          className="text-[13px] leading-[1.23] text-muted-soft transition-colors hover:text-error"
           aria-label="삭제"
         >
           삭제
@@ -138,7 +141,7 @@ export function TodoCard({ todo }: { todo: Todo }) {
             type="button"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={() => setShowChildren((v) => !v)}
-            className="text-[11px] text-slate-400 underline"
+            className="text-[13px] leading-[1.23] text-muted underline decoration-hairline underline-offset-2 hover:text-ink"
           >
             {showChildren ? "하위 항목 숨기기" : "하위 항목 보기"}
           </button>
