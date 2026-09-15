@@ -1,16 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { createSession, deleteSessionByToken, getUserByToken } from "@/lib/session";
-import { createTestUser } from "../helpers/auth";
+import { createTestUser, resetTestDb } from "../helpers/auth";
 
-beforeEach(async () => {
-  // Todo must be cleared before User: Todo.userId is a required relation,
-  // and a leftover Todo from another test file's last run would make
-  // user.deleteMany fail with a referential-integrity error.
-  await prisma.todo.deleteMany({});
-  await prisma.session.deleteMany({});
-  await prisma.user.deleteMany({});
-});
+beforeEach(resetTestDb);
 
 describe("createSession / getUserByToken", () => {
   it("returns the owning user for a valid token", async () => {

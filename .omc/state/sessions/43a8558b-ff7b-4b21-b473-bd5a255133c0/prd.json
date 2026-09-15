@@ -23,7 +23,7 @@
       "passes": true,
       "governingCriteriaRevision": 1,
       "completionCriteriaRevision": 1,
-      "architectVerified": false,
+      "architectVerified": true,
       "criterionAmendments": [],
       "notes": "Verified: schema.prisma User/Session/Todo.userId pushed to Atlas via npx prisma db push (real run, output captured). lib/session.ts has 5 passing tests (valid token, hash-not-raw-token, unknown token, expiry+cleanup, deleteSessionByToken). scripts/migrate-add-user-id.ts refactored to export a testable migrateOrphanedTodosToUser() function; tests/scripts/migrate-add-user-id.test.ts raw-inserts a userId-less Todo (bypassing the now-required schema field) and proves the migration assigns it correctly while leaving already-owned todos untouched (2 tests)."
     },
@@ -43,7 +43,7 @@
       "passes": true,
       "governingCriteriaRevision": 1,
       "completionCriteriaRevision": 1,
-      "architectVerified": false,
+      "architectVerified": true,
       "criterionAmendments": [],
       "notes": "Verified: tests/api/auth.test.ts (7 tests) covers missing code->400, state mismatch->400, no state cookie->400, successful login (fetch-mocked GitHub token+user endpoints) creating User+Session+cookie and that the new cookie actually authenticates a follow-up /api/todos call, and second-login-same-githubId updates rather than duplicates. Live-verified against a REAL registered GitHub OAuth App (real GITHUB_CLIENT_ID/SECRET appeared in .env): GET /auth/github redirects to a correctly-formed https://github.com/login/oauth/authorize URL with the real client_id, dynamic redirect_uri matching the actual running port, random state, scope=read:user, and sets a matching httpOnly oauth_state cookie."
     },
@@ -60,7 +60,7 @@
       "passes": true,
       "governingCriteriaRevision": 1,
       "completionCriteriaRevision": 1,
-      "architectVerified": false,
+      "architectVerified": true,
       "criterionAmendments": [],
       "notes": "Verified: tests/api/auth.test.ts logout test creates a session, confirms it authenticates, logs out, confirms the Session row is gone from the DB and the same old cookie now gets 401."
     },
@@ -78,7 +78,7 @@
       "passes": true,
       "governingCriteriaRevision": 1,
       "completionCriteriaRevision": 1,
-      "architectVerified": false,
+      "architectVerified": true,
       "criterionAmendments": [],
       "notes": "Verified: app/login/page.tsx renders the GitHub login link. app/page.tsx redirects unauthenticated requests to /login (live-verified via curl: 307 to /login) and unauthenticated /api/todos returns 401 (live-verified). UserHeader added without touching TodoApp/TodoBoard/TodoCard CRUD logic."
     },
@@ -99,7 +99,7 @@
       "passes": true,
       "governingCriteriaRevision": 1,
       "completionCriteriaRevision": 1,
-      "architectVerified": false,
+      "architectVerified": true,
       "criterionAmendments": [],
       "notes": "Verified via 29 tests in tests/api/todos.test.ts (401 on every route without a session, GET only returns the caller own todos, POST ignores a client-supplied userId, cross-user 404 on PATCH/DELETE/reorder, cross-user parent-link rejected with 400) plus the pre-existing CRUD/validation tests updated only to authenticate first -- all passing unchanged, proving the underlying business logic was not altered."
     },
@@ -116,7 +116,7 @@
       "passes": true,
       "governingCriteriaRevision": 1,
       "completionCriteriaRevision": 1,
-      "architectVerified": false,
+      "architectVerified": true,
       "criterionAmendments": [],
       "notes": ".env.example and docs/GITHUB_OAUTH_SETUP.md written; no real secret values in either. Setup guide explicitly tells the user to match the callback URL to whatever port npm run dev actually lands on (ports vary here since 3000+ are often occupied on this machine), since GitHub OAuth requires an exact match."
     },
@@ -134,9 +134,23 @@
       "passes": true,
       "governingCriteriaRevision": 1,
       "completionCriteriaRevision": 1,
-      "architectVerified": false,
+      "architectVerified": true,
       "criterionAmendments": [],
       "notes": "npm run build, npx tsc --noEmit, npm run lint all clean. npm run test: 62/62 passing across 9 files (up from 40 pre-auth), including every pre-existing test now authenticated."
     }
-  ]
+  ],
+  "architectApproval": {
+    "verdict": "APPROVED",
+    "round": 1,
+    "feature": "GitHub OAuth login",
+    "timestamp": "2026-09-15T15:45:59.230Z",
+    "followUps": [
+      "Session-expiry UX: TodoApp surfaces raw 401 error text instead of redirecting to /login mid-session",
+      "No TTL sweep on Session collection (lazy cleanup only on the exact token read)",
+      "migrate-add-user-id.ts looks up by non-unique username field (findFirst) -- could mis-target if a stale duplicate exists",
+      "/login not redirected away for an already-authenticated user (cosmetic)",
+      ".env.example documents MONGODB_URI but not DATABASE_URL (derived at dev time; next start deployment has nothing generating it) -- pre-existing, out of this feature scope",
+      "Minor config-state disclosure in error responses (no secrets, just misconfiguration state)"
+    ]
+  }
 }

@@ -5,6 +5,17 @@ import type { User } from "@prisma/client";
 
 let counter = 0;
 
+/**
+ * Clears Todo/Session/User in dependency order (Todo.userId is a required
+ * relation, so it must go first or a later user.deleteMany would fail).
+ * Call this in every auth-aware test file's beforeEach.
+ */
+export async function resetTestDb(): Promise<void> {
+  await prisma.todo.deleteMany({});
+  await prisma.session.deleteMany({});
+  await prisma.user.deleteMany({});
+}
+
 /** Creates a User directly via Prisma, bypassing the real GitHub OAuth flow. */
 export async function createTestUser(overrides?: Partial<{ username: string; avatarUrl: string }>): Promise<User> {
   counter += 1;

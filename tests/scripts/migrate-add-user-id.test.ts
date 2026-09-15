@@ -1,13 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { migrateOrphanedTodosToUser } from "../../scripts/migrate-add-user-id";
-import { createTestUser } from "../helpers/auth";
+import { createTestUser, resetTestDb } from "../helpers/auth";
 
-beforeEach(async () => {
-  await prisma.todo.deleteMany({});
-  await prisma.session.deleteMany({});
-  await prisma.user.deleteMany({});
-});
+beforeEach(resetTestDb);
 
 /**
  * Inserts a Todo document without a `userId`, the way pre-auth data would

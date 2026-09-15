@@ -1,17 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { NextRequest } from "next/server";
 import { GET as GITHUB_START } from "@/app/auth/github/route";
 import { GET as GITHUB_CALLBACK } from "@/app/auth/github/callback/route";
 import { POST as LOGOUT } from "@/app/auth/logout/route";
 import { GET as TODOS_GET } from "@/app/api/todos/route";
 import { prisma } from "@/lib/prisma";
 import { OAUTH_STATE_COOKIE_NAME, SESSION_COOKIE_NAME } from "@/lib/session";
-
-function req(url: string, init: RequestInit = {}, cookie?: string) {
-  const headers = new Headers(init.headers);
-  if (cookie) headers.set("Cookie", cookie);
-  return new NextRequest(new Request(url, { ...init, headers }));
-}
+import { resetTestDb } from "../helpers/auth";
+import { req } from "../helpers/request";
 
 /** Extracts a `name=value` cookie assignment from a Set-Cookie header set on a response. */
 function getSetCookie(res: Response, name: string): string | undefined {
@@ -21,12 +16,7 @@ function getSetCookie(res: Response, name: string): string | undefined {
 }
 
 beforeEach(async () => {
-  // Todo must be cleared before User: Todo.userId is a required relation,
-  // and a leftover Todo from another test file's last run would make
-  // user.deleteMany fail with a referential-integrity error.
-  await prisma.todo.deleteMany({});
-  await prisma.session.deleteMany({});
-  await prisma.user.deleteMany({});
+  await resetTestDb();
   process.env.GITHUB_CLIENT_ID = "test-client-id";
   process.env.GITHUB_CLIENT_SECRET = "test-client-secret";
 });

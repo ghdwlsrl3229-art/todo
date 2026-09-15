@@ -1,22 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { NextRequest } from "next/server";
 import { GET, POST } from "@/app/api/todos/route";
 import { PATCH, DELETE } from "@/app/api/todos/[id]/route";
 import { PATCH as REORDER } from "@/app/api/todos/reorder/route";
 import { prisma } from "@/lib/prisma";
-import { authCookieFor, createTestUser } from "../helpers/auth";
-
-function req(url: string, init: RequestInit = {}, cookie?: string) {
-  const headers = new Headers(init.headers);
-  if (cookie) headers.set("Cookie", cookie);
-  return new NextRequest(new Request(url, { ...init, headers }));
-}
-
-const jsonInit = (method: string, body?: unknown): RequestInit => ({
-  method,
-  headers: { "Content-Type": "application/json" },
-  ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-});
+import { authCookieFor, createTestUser, resetTestDb } from "../helpers/auth";
+import { jsonInit, req } from "../helpers/request";
 
 let authCookie: string;
 
@@ -26,9 +14,7 @@ function areq(url: string, init?: RequestInit) {
 }
 
 beforeEach(async () => {
-  await prisma.todo.deleteMany({});
-  await prisma.session.deleteMany({});
-  await prisma.user.deleteMany({});
+  await resetTestDb();
   const user = await createTestUser();
   authCookie = await authCookieFor(user.id);
 });

@@ -13,13 +13,11 @@ import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { prisma } from "@/lib/prisma";
 import { CreateTodoForm } from "@/components/CreateTodoForm";
 import { renderWithQueryClient as renderWithClient, stubFetchToRouteHandlers } from "../helpers/test-utils";
-import { authCookieFor, createTestUser } from "../helpers/auth";
+import { authCookieFor, createTestUser, resetTestDb } from "../helpers/auth";
 
 describe("CreateTodoForm (component, against real route handlers)", () => {
   beforeEach(async () => {
-    await prisma.todo.deleteMany({});
-    await prisma.session.deleteMany({});
-    await prisma.user.deleteMany({});
+    await resetTestDb();
     const user = await createTestUser();
     stubFetchToRouteHandlers(await authCookieFor(user.id));
   });

@@ -8,10 +8,9 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { useCreateTodo, useTodosQuery, useUpdateTodoStatus } from "@/hooks/useTodos";
 import { calcWeeklyProgress } from "@/lib/progress";
-import { prisma } from "@/lib/prisma";
 import type { TodosFilter } from "@/lib/types";
 import { renderWithQueryClient, stubFetchToRouteHandlers } from "../helpers/test-utils";
-import { authCookieFor, createTestUser } from "../helpers/auth";
+import { authCookieFor, createTestUser, resetTestDb } from "../helpers/auth";
 
 const filter: TodosFilter = { periodType: "WEEKLY", targetDate: "2026-09-14" };
 
@@ -42,9 +41,7 @@ function Harness() {
 
 describe("weekly progress recalculation (integration)", () => {
   beforeEach(async () => {
-    await prisma.todo.deleteMany({});
-    await prisma.session.deleteMany({});
-    await prisma.user.deleteMany({});
+    await resetTestDb();
     const user = await createTestUser();
     stubFetchToRouteHandlers(await authCookieFor(user.id));
   });
